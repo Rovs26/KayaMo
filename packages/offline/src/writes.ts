@@ -1,5 +1,6 @@
-import type { FoodEntryWrite } from '@kayamo/db';
-import { getOfflineDb, type LocalFoodEntry, type LocalWeightLog, type LocalWorkout } from './db';
+import type { FoodEntryWrite, MealTemplate, MealTemplateItem, MealTemplateWrite } from '@kayamo/db';
+import { incomingWins } from '@kayamo/db';
+import { getOfflineDb, type LocalFoodEntry, type LocalMealTemplate, type LocalWeightLog, type LocalWorkout } from './db';
 import { logicalDateFromInstant } from './logical-date';
 import { enqueueUpsert } from './queue';
 import { drainQueue } from './sync';
@@ -15,7 +16,7 @@ function nowIso(): string {
 export type LogFoodEntryInput = {
   userId: string;
   mealSlot: FoodEntryWrite['meal_slot'];
-  foodId: string;
+  foodId: string | null;
   foodName: string;
   quantity: string;
   grams: string;
@@ -31,6 +32,7 @@ export type LogFoodEntryInput = {
   inputMethod: FoodEntryWrite['input_method'];
   servingId?: string | null;
   servingLabel?: string | null;
+  confidence?: string;
   timeZone?: string;
   dayStartsAt?: string;
 };
@@ -57,7 +59,7 @@ export async function logFoodEntry(input: LogFoodEntryInput): Promise<LocalFoodE
     sugar_g: input.sugar_g,
     sodium_mg: input.sodium_mg,
     source: input.source,
-    confidence: '0.80',
+    confidence: input.confidence ?? '0.80',
     input_method: input.inputMethod,
     photo_url: null,
     raw_input: null,
@@ -74,6 +76,23 @@ export async function logFoodEntry(input: LogFoodEntryInput): Promise<LocalFoodE
   await enqueueUpsert('food_entries', entry.id, toFoodEntryPayload(entry));
   void drainQueue();
   return entry;
+}
+
+export async function logFoodEntries(inputs: LogFoodEntryInput[]): Promise<LocalFoodEntry[]> {
+  const rows: LocalFoodEntry[] = [];
+  for (const input of inputs) {
+    rows.push(await logFoodEntry(input));
+  }
+  return rows;
+}
+
+export async function tombstoneLocalFoodEntries(params: {
+  ids: readonly string[];
+  userId: string;
+}): Promise<void> {
+  for (const id of params.ids) {
+    await tombstoneLocalFoodEntry({ id, userId: params.userId });
+  }
 }
 
 export async function tombstoneLocalFoodEntry(params: {
@@ -98,6 +117,77 @@ export async function listLocalFoodEntries(
   return rows
     .filter((row) => row.logical_date === logicalDate && !row.deleted_at)
     .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+}
+
+export async function listLocalFoodHistory(userId: string): Promise<LocalFoodEntry[]> {
+  const rows = await getOfflineDb().food_entries.where('user_id').equals(userId).toArray();
+  return rows
+    .filter((row) => !row.deleted_at && row.food_id)
+    .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+}
+
+export async function mergeRemoteFoodEntries(rows: LocalFoodEntry[]): Promise<void> {
+  const db = getOfflineDb();
+  for (const row of rows) {
+    const existing = await db.food_entries.get(row.id);
+    if (!existing || incomingWins(existing.updated_at, row.updated_at)) {
+      await db.food_entries.put(row);
+    }
+  }
+}
+
+export async function saveMealTemplate(input: {
+  userId: string;
+  name: string;
+  items: MealTemplateItem[];
+  id?: string;
+}): Promise<LocalMealTemplate> {
+  const updatedAt = nowIso();
+  const row: LocalMealTemplate = {
+    id: input.id ?? newId(),
+    user_id: input.userId,
+    name: input.name.trim(),
+    items: input.items,
+    created_at: updatedAt,
+    updated_at: updatedAt,
+    server_updated_at: updatedAt,
+    deleted_at: null,
+  };
+  await getOfflineDb().meal_templates.put(row);
+  await enqueueUpsert('meal_templates', row.id, toMealTemplatePayload(row));
+  void drainQueue();
+  return row;
+}
+
+export async function listLocalMealTemplates(userId: string): Promise<LocalMealTemplate[]> {
+  const rows = await getOfflineDb().meal_templates.where('user_id').equals(userId).toArray();
+  return rows
+    .filter((row) => !row.deleted_at)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+}
+
+export async function tombstoneLocalMealTemplate(params: {
+  id: string;
+  userId: string;
+}): Promise<void> {
+  const db = getOfflineDb();
+  const existing = await db.meal_templates.get(params.id);
+  if (!existing || existing.user_id !== params.userId) return;
+  const updatedAt = nowIso();
+  const next: LocalMealTemplate = { ...existing, deleted_at: updatedAt, updated_at: updatedAt };
+  await db.meal_templates.put(next);
+  await enqueueUpsert('meal_templates', next.id, toMealTemplatePayload(next));
+  void drainQueue();
+}
+
+export async function mergeRemoteMealTemplates(rows: MealTemplate[]): Promise<void> {
+  const db = getOfflineDb();
+  for (const row of rows) {
+    const existing = await db.meal_templates.get(row.id);
+    if (!existing || incomingWins(existing.updated_at, row.updated_at)) {
+      await db.meal_templates.put(row);
+    }
+  }
 }
 
 export async function logWeight(input: {
@@ -182,5 +272,17 @@ function toFoodEntryPayload(entry: LocalFoodEntry): FoodEntryWrite {
     resolved_via: entry.resolved_via,
     updated_at: entry.updated_at,
     deleted_at: entry.deleted_at,
+  };
+}
+
+function toMealTemplatePayload(row: LocalMealTemplate): MealTemplateWrite {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    name: row.name,
+    items: row.items,
+    updated_at: row.updated_at,
+    created_at: row.created_at,
+    deleted_at: row.deleted_at,
   };
 }

@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./service": "./src/service.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./ph-core": "./src/ph-core.ts",
+    "./load-root-env": "./src/load-root-env.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",

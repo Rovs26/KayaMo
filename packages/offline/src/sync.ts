@@ -1,10 +1,11 @@
-import type { DbClient, FoodEntryWrite, UpsertResult } from '@kayamo/db';
+import type { DbClient, FoodEntryWrite, MealTemplateWrite, UpsertMealTemplateResult, UpsertResult } from '@kayamo/db';
 import {
   DbQueryError,
   insertWeightLog,
   insertWorkout,
   isUnauthorizedError,
   upsertFoodEntry,
+  upsertMealTemplate,
 } from '@kayamo/db';
 import { backoffMs } from './backoff';
 import { getOfflineDb, type SyncQueueItem, type SyncableTable } from './db';
@@ -172,6 +173,16 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         .from('workout_sets')
         .upsert(item.payload as never, { onConflict: 'id' });
       if (error) throw error;
+      return;
+    }
+    case 'meal_templates': {
+      const result: UpsertMealTemplateResult = await upsertMealTemplate(
+        client,
+        item.payload as MealTemplateWrite,
+      );
+      if (result.applied) {
+        await getOfflineDb().meal_templates.put(result.row);
+      }
     }
   }
 }
@@ -238,6 +249,7 @@ export function isSyncableTable(value: string): value is SyncableTable {
     value === 'food_entries' ||
     value === 'weight_logs' ||
     value === 'workouts' ||
-    value === 'workout_sets'
+    value === 'workout_sets' ||
+    value === 'meal_templates'
   );
 }

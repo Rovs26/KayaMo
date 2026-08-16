@@ -30,10 +30,13 @@ export {
   foodAliases,
   foodEntries,
   foods,
+  mealTemplates,
+  offContributeRequests,
   recipeIngredients,
   recipes,
   servings,
 } from './foods';
+export type { MealTemplateItem } from './foods';
 export { profiles } from './profiles';
 export { exercises, workoutSets, workouts } from './training';
 export { expenditureEstimates, targets, weightLogs } from './user-metrics';

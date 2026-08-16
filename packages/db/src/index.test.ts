@@ -31,5 +31,9 @@ describe('service-role guard', () => {
     const src = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch('createServiceSupabase');
     expect(src).not.toMatch('./service');
+    expect(src).not.toMatch("from './ph-core'");
+    expect(src).not.toMatch("from './drizzle'");
+    expect(src).not.toMatch('load-root-env');
+    expect(src).not.toMatch('postgres');
   });
 });

@@ -3,6 +3,8 @@ import type {
   foodAliases,
   foodEntries,
   foods,
+  mealTemplates,
+  offContributeRequests,
   recipeIngredients,
   recipes,
   servings,
@@ -31,6 +33,8 @@ export type Database = {
       recipes: TableDef<typeof recipes>;
       recipe_ingredients: TableDef<typeof recipeIngredients>;
       food_entries: TableDef<typeof foodEntries>;
+      meal_templates: TableDef<typeof mealTemplates>;
+      off_contribute_requests: TableDef<typeof offContributeRequests>;
       exercises: TableDef<typeof exercises>;
       workouts: TableDef<typeof workouts>;
       workout_sets: TableDef<typeof workoutSets>;
@@ -79,4 +83,5 @@ export type WorkoutSet = Database['public']['Tables']['workout_sets']['Row'];
 export type Serving = Database['public']['Tables']['servings']['Row'];
 export type ServingInsert = Database['public']['Tables']['servings']['Insert'];
 export type Recipe = Database['public']['Tables']['recipes']['Row'];
+export type MealTemplate = Database['public']['Tables']['meal_templates']['Row'];
 export type AgentRun = Database['public']['Tables']['agent_runs']['Row'];

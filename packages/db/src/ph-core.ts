@@ -1,23 +1,14 @@
+/**
+ * PH core YAML upsert via Drizzle. Node-only — import from `@kayamo/db/ph-core`,
+ * never from the public `@kayamo/db` barrel (that path is used by the PWA client).
+ */
 import { eq } from 'drizzle-orm';
 import { createDrizzle, requireDatabaseUrl } from './drizzle';
 import { foodAliases, foods, servings } from './schema/foods';
+import type { PhCoreFoodRow } from './ph-core-types';
 
-export type PhCoreFoodRow = {
-  sourceId: string;
-  name: string;
-  nameTl: string[];
-  kcal: string;
-  protein_g: string;
-  carbs_g: string;
-  fat_g: string;
-  fiber_g: string;
-  sugar_g: string;
-  sodium_mg: string;
-  confidence: string;
-  sourceNote: string;
-  verified: boolean;
-  servings: Array<{ label: string; grams: string; isDefault: boolean }>;
-};
+export type { PhCoreFoodRow } from './ph-core-types';
+export { loadRootEnv } from './load-root-env';
 
 export async function upsertPhCoreFoods(
   rows: PhCoreFoodRow[],

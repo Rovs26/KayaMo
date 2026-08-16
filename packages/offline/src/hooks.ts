@@ -1,8 +1,8 @@
 import { liveQuery } from 'dexie';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { LocalFoodEntry } from './db';
+import type { LocalFoodEntry, LocalMealTemplate } from './db';
 import { bindStatusStore, getSyncStatusSnapshot, type SyncStatus } from './sync';
-import { listLocalFoodEntries } from './writes';
+import { listLocalFoodEntries, listLocalFoodHistory, listLocalMealTemplates } from './writes';
 
 const SSR_STATUS: SyncStatus = { kind: 'synced' };
 
@@ -24,6 +24,42 @@ export function useLiveFoodEntries(userId: string | null, logicalDate: string): 
     });
     return () => subscription.unsubscribe();
   }, [userId, logicalDate]);
+
+  return rows;
+}
+
+export function useLiveFoodHistory(userId: string | null): LocalFoodEntry[] {
+  const [rows, setRows] = useState<LocalFoodEntry[]>([]);
+
+  useEffect(() => {
+    if (!userId) {
+      setRows([]);
+      return;
+    }
+    const subscription = liveQuery(() => listLocalFoodHistory(userId)).subscribe({
+      next: setRows,
+      error: () => setRows([]),
+    });
+    return () => subscription.unsubscribe();
+  }, [userId]);
+
+  return rows;
+}
+
+export function useLiveMealTemplates(userId: string | null): LocalMealTemplate[] {
+  const [rows, setRows] = useState<LocalMealTemplate[]>([]);
+
+  useEffect(() => {
+    if (!userId) {
+      setRows([]);
+      return;
+    }
+    const subscription = liveQuery(() => listLocalMealTemplates(userId)).subscribe({
+      next: setRows,
+      error: () => setRows([]),
+    });
+    return () => subscription.unsubscribe();
+  }, [userId]);
 
   return rows;
 }

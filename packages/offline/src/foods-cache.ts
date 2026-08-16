@@ -26,6 +26,21 @@ export async function getCachedServings(foodId: string): Promise<Serving[]> {
   return getOfflineDb().servings.where('food_id').equals(foodId).toArray();
 }
 
+export async function listCachedFoodsWithServings(): Promise<
+  Array<{ food: Food; servings: Serving[] }>
+> {
+  const db = getOfflineDb();
+  const foods = (await db.foods.toArray()).filter((row) => !row.deleted_at);
+  const servings = await db.servings.toArray();
+  const byFood = new Map<string, Serving[]>();
+  for (const serving of servings) {
+    const list = byFood.get(serving.food_id) ?? [];
+    list.push(serving);
+    byFood.set(serving.food_id, list);
+  }
+  return foods.map((food) => ({ food, servings: byFood.get(food.id) ?? [] }));
+}
+
 export async function getFoodReadThrough(
   id: string,
   fetchRemote: () => Promise<Food | null>,

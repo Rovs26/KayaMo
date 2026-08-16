@@ -28,6 +28,29 @@ export type ResolvedPortion = {
   kcal: number;
 };
 
+const PH_SERVING_RANK = ['tasa', 'piraso', 'order', 'hiwa', 'kutsara', 'bowl'] as const;
+
+function servingRank(label: string): number {
+  const tokens = label.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const phIndex = PH_SERVING_RANK.findIndex((unit) => {
+    const hints = UNIT_HINTS[unit] ?? [unit];
+    return hints.some((hint) => tokens.includes(hint));
+  });
+  if (phIndex >= 0) return phIndex;
+  if (tokens.includes('g') || tokens.includes('gram') || tokens.includes('grams')) {
+    return PH_SERVING_RANK.length + 1;
+  }
+  return PH_SERVING_RANK.length;
+}
+
+/** PH-native units first (tasa, piraso, order, hiwa, kutsara, bowl), grams last. */
+export function sortServingsPhFirst<T extends { label: string }>(servings: readonly T[]): T[] {
+  return servings
+    .map((serving, index) => ({ serving, index, rank: servingRank(serving.label) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((row) => row.serving);
+}
+
 export function defaultServing(servings: FoodServing[]): FoodServing {
   return (
     servings.find((serving) => serving.isDefault) ??

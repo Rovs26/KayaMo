@@ -9,6 +9,7 @@ export {
 export {
   insertFoodEntry,
   listFoodEntriesByLogicalDate,
+  listFoodEntriesSince,
   tombstoneFoodEntry,
   upsertFoodEntry,
 } from './food-entries';
@@ -35,6 +36,14 @@ export {
 export type { FoodSearchHit } from './foods';
 export { getProfile, updateProfile } from './profiles';
 export { insertWeightLog, listWeightLogsByLogicalDate, tombstoneWeightLog } from './weight-logs';
+export {
+  listMealTemplates,
+  mealTemplateItemSchema,
+  mealTemplateWriteSchema,
+  tombstoneMealTemplate,
+  upsertMealTemplate,
+} from './meal-templates';
+export type { MealTemplateWrite, UpsertMealTemplateResult } from './meal-templates';
 export {
   insertWorkout,
   listWorkoutSets,

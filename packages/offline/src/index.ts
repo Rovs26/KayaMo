@@ -5,6 +5,7 @@ export { getOfflineDb, resetOfflineDb, type KayaMoDB } from './db';
 export type {
   LocalFood,
   LocalFoodEntry,
+  LocalMealTemplate,
   LocalServing,
   LocalWeightLog,
   LocalWorkout,
@@ -18,16 +19,25 @@ export {
   getCachedFood,
   getCachedServings,
   getFoodReadThrough,
+  listCachedFoodsWithServings,
 } from './foods-cache';
-export { useLiveFoodEntries, useSyncStatus } from './hooks';
-export { logicalDateFromInstant } from './logical-date';
+export { useLiveFoodEntries, useLiveFoodHistory, useLiveMealTemplates, useSyncStatus } from './hooks';
+export { localHourFromInstant, logicalDateFromInstant } from './logical-date';
 export { enqueueUpsert, pendingCount } from './queue';
 export { getSyncStatusSnapshot, startSync, type SyncDeps, type SyncStatus } from './sync';
 export {
   listLocalFoodEntries,
+  listLocalFoodHistory,
+  listLocalMealTemplates,
+  logFoodEntries,
   logFoodEntry,
   logWeight,
   logWorkout,
+  mergeRemoteFoodEntries,
+  mergeRemoteMealTemplates,
+  saveMealTemplate,
+  tombstoneLocalFoodEntries,
   tombstoneLocalFoodEntry,
+  tombstoneLocalMealTemplate,
   type LogFoodEntryInput,
 } from './writes';

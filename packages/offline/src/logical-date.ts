@@ -23,6 +23,10 @@ export function logicalDateFromInstant(
   return `${shiftedDate.getUTCFullYear()}-${pad(shiftedDate.getUTCMonth() + 1)}-${pad(shiftedDate.getUTCDate())}`;
 }
 
+export function localHourFromInstant(instantIso: string, timeZone = 'Asia/Manila'): number {
+  return localParts(new Date(instantIso), timeZone).hour;
+}
+
 function parseDayStartsAt(value: string): [number, number, number] {
   const [h = '0', m = '0', s = '0'] = value.split(':');
   return [Number(h), Number(m), Number(s)];

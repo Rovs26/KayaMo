@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Food, FoodEntry, Serving, WeightLog, Workout, WorkoutSet } from '@kayamo/db';
+import type { Food, FoodEntry, MealTemplate, Serving, WeightLog, Workout, WorkoutSet } from '@kayamo/db';
 
 export type LocalFoodEntry = FoodEntry;
 export type LocalWeightLog = WeightLog;
@@ -7,8 +7,14 @@ export type LocalWorkout = Workout;
 export type LocalWorkoutSet = WorkoutSet;
 export type LocalFood = Food;
 export type LocalServing = Serving;
+export type LocalMealTemplate = MealTemplate;
 
-export type SyncableTable = 'food_entries' | 'weight_logs' | 'workouts' | 'workout_sets';
+export type SyncableTable =
+  | 'food_entries'
+  | 'weight_logs'
+  | 'workouts'
+  | 'workout_sets'
+  | 'meal_templates';
 
 export type SyncQueueItem = {
   id: string;
@@ -27,6 +33,7 @@ export class KayaMoDB extends Dexie {
   workout_sets!: Table<LocalWorkoutSet, string>;
   foods!: Table<LocalFood, string>;
   servings!: Table<LocalServing, string>;
+  meal_templates!: Table<LocalMealTemplate, string>;
   sync_queue!: Table<SyncQueueItem, string>;
 
   constructor() {
@@ -39,6 +46,9 @@ export class KayaMoDB extends Dexie {
       foods: 'id, source, source_id, barcode, updated_at, deleted_at',
       servings: 'id, food_id',
       sync_queue: 'id, nextAttemptAt, table, entityId',
+    });
+    this.version(2).stores({
+      meal_templates: 'id, user_id, updated_at, deleted_at',
     });
   }
 }

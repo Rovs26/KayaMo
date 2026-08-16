@@ -1,5 +1,4 @@
 export { PACKAGE, getPublicSupabaseEnv, getServiceSupabaseEnv, isDbTestConfigured, isSupabaseConfigured } from './env';
-export { loadRootEnv } from './load-root-env';
 export {
   createBrowserSupabase,
   createCookieSupabase,
@@ -12,6 +11,7 @@ export type {
   FoodEntry,
   FoodEntryInsert,
   FoodInsert,
+  MealTemplate,
   Profile,
   Recipe,
   Serving,
@@ -45,6 +45,8 @@ export {
   insertWorkout,
   listAgentRuns,
   listFoodEntriesByLogicalDate,
+  listFoodEntriesSince,
+  listMealTemplates,
   listServings,
   listServingsByFoodIds,
   listVisibleFoods,
@@ -56,14 +58,17 @@ export {
   queueOffContribute,
   searchFoods,
   tombstoneFoodEntry,
+  tombstoneMealTemplate,
   tombstoneUserFood,
   tombstoneWeightLog,
   tombstoneWorkout,
   tombstoneWorkoutSet,
   updateProfile,
   upsertFoodEntry,
+  upsertMealTemplate,
 } from './queries';
 export type { FoodSearchHit } from './queries';
-export { upsertPhCoreFoods } from './ph-core';
-export type { PhCoreFoodRow } from './ph-core';
-export type { DbClient, FoodEntryWrite, UpsertResult } from './queries';
+export { mealTemplateItemSchema } from './queries';
+export type { MealTemplateItem } from './schema';
+export type { PhCoreFoodRow } from './ph-core-types';
+export type { DbClient, FoodEntryWrite, MealTemplateWrite, UpsertMealTemplateResult, UpsertResult } from './queries';

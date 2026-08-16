@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logicalDateFromInstant } from './logical-date';
+import { localHourFromInstant, logicalDateFromInstant } from './logical-date';
 
 describe('logicalDateFromInstant', () => {
   it('uses the Manila calendar date at midnight start', () => {
@@ -15,5 +15,11 @@ describe('logicalDateFromInstant', () => {
     expect(logicalDateFromInstant('2026-08-16T21:30:00.000Z', 'Asia/Manila', '06:00:00')).toBe(
       '2026-08-16',
     );
+  });
+});
+
+describe('localHourFromInstant', () => {
+  it('reads the hour in Asia/Manila', () => {
+    expect(localHourFromInstant('2026-08-16T23:00:00.000Z', 'Asia/Manila')).toBe(7);
   });
 });

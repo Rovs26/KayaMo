@@ -4,6 +4,7 @@ import {
   check,
   date,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -12,7 +13,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { createdAt, deletedAt, emptyTextArray, serverUpdatedAt, updatedAt } from './columns';
-import { FOOD_SOURCES, sqlIn } from './constants';
+import { FOOD_SOURCES, sqlIn, type FoodSource, type ResolvedVia } from './constants';
 import { confidence, nutrient, numericAmount } from './types';
 
 const loggedAt = timestamp('logged_at', { withTimezone: true, mode: 'string' }).notNull();
@@ -211,5 +212,68 @@ export const foodEntries = pgTable(
     ),
     check('food_entries_quantity_positive', sql`${table.quantity} > 0`),
     check('food_entries_grams_positive', sql`${table.grams} > 0`),
+  ],
+);
+
+export const offContributeRequests = pgTable(
+  'off_contribute_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    food_id: uuid('food_id')
+      .notNull()
+      .references(() => foods.id, { onDelete: 'cascade' }),
+    user_id: uuid('user_id').notNull(),
+    status: text('status').notNull().default('queued'),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    server_updated_at: serverUpdatedAt,
+  },
+  (table) => [
+    unique('off_contribute_requests_food_uidx').on(table.food_id),
+    index('off_contribute_requests_user_idx').on(table.user_id),
+    check(
+      'off_contribute_status_check',
+      sql`${table.status} in ('queued', 'sent', 'skipped')`,
+    ),
+  ],
+);
+
+export type MealTemplateItem = {
+  foodId: string;
+  foodName: string;
+  quantity: string;
+  grams: string;
+  servingId: string | null;
+  servingLabel: string | null;
+  kcal: string;
+  protein_g: string;
+  carbs_g: string;
+  fat_g: string;
+  fiber_g: string;
+  sugar_g: string;
+  sodium_mg: string;
+  source: FoodSource;
+  resolvedVia: ResolvedVia;
+  confidence: string;
+};
+
+export const mealTemplates = pgTable(
+  'meal_templates',
+  {
+    id: uuid('id').primaryKey(),
+    user_id: uuid('user_id').notNull(),
+    name: text('name').notNull(),
+    items: jsonb('items').$type<MealTemplateItem[]>().notNull(),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    server_updated_at: serverUpdatedAt,
+    deleted_at: deletedAt,
+  },
+  (table) => [
+    index('meal_templates_user_id_idx').on(table.user_id),
+    index('meal_templates_server_updated_at_idx').on(table.server_updated_at),
+    check('meal_templates_name_len', sql`char_length(${table.name}) between 1 and 80`),
+    check('meal_templates_items_array', sql`jsonb_typeof(${table.items}) = 'array'`),
+    check('meal_templates_items_min', sql`jsonb_array_length(${table.items}) >= 1`),
   ],
 );

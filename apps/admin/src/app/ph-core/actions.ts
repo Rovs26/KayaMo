@@ -1,6 +1,6 @@
 'use server';
 
-import { loadRootEnv, upsertPhCoreFoods } from '@kayamo/db';
+import { loadRootEnv, upsertPhCoreFoods } from '@kayamo/db/ph-core';
 import {
   loadPhCoreYaml,
   phCoreFoodSchema,

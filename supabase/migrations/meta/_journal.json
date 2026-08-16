@@ -29,6 +29,13 @@
       "when": 1771283700000,
       "tag": "0004_off_contribute",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771284000000,
+      "tag": "0005_meal_templates",
+      "breakpoints": true
     }
   ]
 }

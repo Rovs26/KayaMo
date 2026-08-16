@@ -36,6 +36,21 @@ export async function listFoodEntriesByLogicalDate(
   return data ?? [];
 }
 
+export async function listFoodEntriesSince(
+  client: DbClient,
+  params: { userId: string; sinceLogicalDate: string },
+): Promise<FoodEntry[]> {
+  const { data, error } = await client
+    .from('food_entries')
+    .select('*')
+    .eq('user_id', params.userId)
+    .gte('logical_date', params.sinceLogicalDate)
+    .is('deleted_at', null)
+    .order('logged_at', { ascending: true });
+  throwIfError(error);
+  return data ?? [];
+}
+
 export async function insertFoodEntry(client: DbClient, row: FoodEntryWrite): Promise<FoodEntry> {
   const { data, error } = await client
     .from('food_entries')
