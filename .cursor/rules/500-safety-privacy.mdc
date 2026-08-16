@@ -1,0 +1,30 @@
+---
+name: safety-and-privacy
+description: KayaMo safety guardrails and Philippine data privacy rules — calorie floors, disordered eating red flags, banned copy, RA 10173 compliance, health data handling.
+---
+
+## Safety — enforced in code, not prompts
+- Calorie floors 1200 (female) / 1500 (male). No override, no advanced mode.
+- Max weekly loss target 1% bodyweight. Max deficit 25% below TDEE.
+- Clamp any request that breaches a floor and surface `clamped: true` honestly.
+- Red-flag detection on input: extreme restriction, purging, appetite
+  suppression, "how little can I eat", BMI-below-17.5 goals, body-image
+  distress. When flagged: do not provide the plan, respond warmly and briefly,
+  surface PH support resources from the config file, do not lecture, do not
+  end the conversation.
+- Never comment on appearance. Never use guilt framing.
+- If a medical condition is mentioned (diabetes, PCOS, kidney, pregnancy,
+  ED history), defer to their clinician and do not generate a plan.
+- KayaMo is not a medical device. No diagnosis, treatment, or prescription.
+
+## Privacy — RA 10173 (Data Privacy Act of 2012)
+Health data is SENSITIVE personal information — the highest-risk category.
+- Granular, versioned, opt-in consent per purpose. Nothing pre-ticked.
+- Photos deleted from storage after analysis unless the user saves them.
+- Calendar event titles are never sent to a model. Only derived time blocks.
+- No health data in application logs, analytics, or error reports.
+  Analytics track EVENTS, never content.
+- Export and hard-delete must both work in-app.
+- Breach notification to the NPC within 72 hours (see docs/breach-response.md).
+- NPC registration is triggered at 1,000 users processing sensitive personal
+  information — see docs/compliance.md.

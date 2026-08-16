@@ -1,0 +1,15 @@
+---
+name: data-model-and-rls
+description: KayaMo database schema rules — tables, denormalization, row-level security, offline sync keys, and migration conventions.
+---
+
+- RLS on every table. Users read only their own rows. Exception: `foods` and
+  `servings` where source != 'user' are globally readable.
+- `food_entries` stores a DENORMALIZED nutrient snapshot. Never replace it
+  with a join. Correcting a food in 2027 must not silently rewrite 2026 history.
+- Every user-owned row uses a client-generated UUID primary key plus
+  `updated_at`, so offline sync can do last-write-wins.
+- Targets and expenditure estimates are versioned rows (`effective_from`),
+  never updated in place.
+- User-created foods are private by default, with an explicit opt-in to share.
+- Every table carries created_at / updated_at.

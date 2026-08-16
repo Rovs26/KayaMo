@@ -1,0 +1,7 @@
+{
+  "extends": "@kayamo/config/tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}

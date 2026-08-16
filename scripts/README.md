@@ -1,0 +1,3 @@
+- `build-ph-core.ts` — validate data/ph-core/foods.yaml and upsert (Chapter 7)
+- `seed.ts` — seed dev data (Chapter 4)
+- `simulate-tdee.ts` — 12-week synthetic personas for the TDEE engine (Chapter 18)

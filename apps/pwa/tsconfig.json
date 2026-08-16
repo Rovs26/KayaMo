@@ -1,0 +1,22 @@
+{
+  "extends": ["../../tsconfig.base.json", "@kayamo/config/tsconfig/next.json"],
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@kayamo/ai": ["../../packages/ai/src"],
+      "@kayamo/core": ["../../packages/core/src"],
+      "@kayamo/db": ["../../packages/db/src"],
+      "@kayamo/food": ["../../packages/food/src"],
+      "@kayamo/offline": ["../../packages/offline/src"],
+      "@kayamo/ui": ["../../packages/ui/src"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "e2e", "vitest.config.ts", "playwright.config.ts"]
+}

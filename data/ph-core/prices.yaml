@@ -1,0 +1,14 @@
+# Typical PHP prices for the planner agent (Chapter 27).
+# Shown in the UI with last_updated so stale prices are visible.
+# These are ESTIMATES, never presented as authoritative.
+
+last_updated: 2026-08-16
+region: NCR
+
+items:
+  - { item: Rice (well-milled), unit: kg, palengke: 52, supermarket: 58 }
+  - { item: Chicken leg quarters, unit: kg, palengke: 180, supermarket: 210 }
+  - { item: Eggs (medium), unit: tray-30, palengke: 240, supermarket: 265 }
+  - { item: Tokwa, unit: pc, palengke: 15, supermarket: 22 }
+  - { item: Monggo, unit: kg, palengke: 95, supermarket: 120 }
+  - { item: Galunggong, unit: kg, palengke: 200, supermarket: 240 }

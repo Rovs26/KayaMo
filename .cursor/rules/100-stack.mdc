@@ -1,0 +1,18 @@
+---
+name: stack-and-tooling
+description: KayaMo tech stack, build commands, dependency rules, Next.js and Supabase conventions, turbo and pnpm workspace usage.
+---
+
+Next.js 15 App Router · TypeScript strict · Tailwind v4 · Supabase
+(Postgres, Auth, Storage, Edge Functions) · Drizzle ORM · Dexie ·
+Vercel AI SDK · Zod · Vitest · Playwright · Capacitor · pnpm + turbo.
+
+Do not substitute a library without asking.
+
+Commands: `pnpm dev:pwa`, `pnpm dev:admin`, `pnpm build`, `pnpm test`,
+`pnpm typecheck`, `pnpm db:migrate`, `pnpm ph-core:build`.
+
+- Server Components by default; "use client" only where interaction requires it.
+- Route handlers validate input with Zod at the boundary.
+- Migrations are generated, reviewed, and committed — never applied ad hoc.
+- Add a dependency to the package that uses it, not to the root.

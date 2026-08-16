@@ -1,0 +1,38 @@
+{
+  "name": "@kayamo/pwa",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@kayamo/ai": "workspace:*",
+    "@kayamo/core": "workspace:*",
+    "@kayamo/db": "workspace:*",
+    "@kayamo/food": "workspace:*",
+    "@kayamo/offline": "workspace:*",
+    "@kayamo/ui": "workspace:*",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@kayamo/config": "workspace:*",
+    "@playwright/test": "^1.54",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

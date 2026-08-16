@@ -1,0 +1,28 @@
+{
+  "name": "kayamo",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:pwa": "turbo run dev --filter=@kayamo/pwa",
+    "dev:admin": "turbo run dev --filter=@kayamo/admin",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:generate": "pnpm --filter @kayamo/db generate",
+    "db:migrate": "pnpm --filter @kayamo/db migrate",
+    "db:seed": "tsx scripts/seed.ts",
+    "ph-core:build": "tsx scripts/build-ph-core.ts",
+    "mobile:sync": "pnpm --filter @kayamo/mobile sync",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3",
+    "tsx": "^4",
+    "turbo": "^2",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

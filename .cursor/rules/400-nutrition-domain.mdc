@@ -1,0 +1,28 @@
+---
+name: nutrition-domain
+description: KayaMo nutrition and food data rules — resolver cascade order, Philippine food data sourcing, portions, Taglish aliases, licensing constraints.
+---
+
+## Resolver cascade (@kayamo/food `resolve.ts`) — order is fixed
+1. My Foods (user's own confirmed foods)
+2. PH core (`source='ph_core'`, matched on name AND name_tl aliases)
+3. Local cache
+4. Open Food Facts — jumps to FIRST when a barcode is present
+5. USDA FoodData Central
+6. LLM estimate — last resort, confidence capped at 0.5, always UI-flagged
+
+Never collapse the cascade into a single LLM call.
+Always return a ranked candidate list, never a bare answer.
+
+## Licensing — hard constraints
+- Do NOT scrape FNRI PhilFCT or any FNRI endpoint. No open licence exists.
+  PH core values come from ingredient decomposition of CC0 USDA data, with
+  the assumption recorded in `source_note`.
+- Open Food Facts is ODbL: store the attribution with every imported record
+  and surface it in the About screen. Send a proper User-Agent.
+- USDA FoodData Central is CC0 — free to use.
+
+## Portions
+PH-native units come first in every picker: tasa, piraso, order, hiwa,
+kutsara, bowl. Grams are the fallback, not the default.
+Vague sizes (malaki / sakto / maliit) map to portion multipliers, never ignored.

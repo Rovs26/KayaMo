@@ -1,0 +1,41 @@
+---
+name: project-constitution
+description: KayaMo core rules — monorepo layout, hard constraints, naming, and conventions. Applies to all work in this repo.
+alwaysApply: true
+---
+
+KayaMo is a Filipino-first calorie and gym tracker. PWA first, Capacitor wrap
+for Android/iOS. Solo developer. Users are in the Philippines.
+Bundle ID `ph.kayamo.app`. AI companion is named Coco.
+
+## Monorepo layout — put code in the right place
+- `apps/pwa`    — user-facing Next.js app. Routes, screens, thin glue only.
+- `apps/admin`  — internal tools, auth-gated, never public.
+- `apps/mobile` — Capacitor shell. Native code only, zero business logic.
+- `packages/db` `core` `food` `ai` `offline` `ui` — all shared logic.
+
+Packages never import from apps. Apps never duplicate package logic.
+If a formula or a resolver appears inside `apps/`, that is a bug.
+
+## Non-negotiable
+- Never call an LLM without a Zod schema on the output.
+- Never write nutrition data without `source` and `confidence`.
+- The LLM extracts text and quantities. Nutrition numbers come from the
+  resolver cascade in @kayamo/food, never from the model.
+- Every AI-created entry is editable by the user.
+- Offline first: writes go to IndexedDB via @kayamo/offline, then sync.
+- Store UTC, render in the user's timezone. Respect their custom day
+  boundary (night shift) — never assume midnight.
+- All money in PHP.
+- Calorie floors (1200F / 1500M) are enforced in code, not prompts.
+- Banned vocabulary anywhere in prompts or UI copy: cheat, guilty, earned,
+  burn it off, bad food, sinful.
+- Health data never appears in logs or error reports.
+- Never modify a test to make it pass. Fix the code, or tell me the test
+  is wrong and why.
+
+## Conventions
+- pnpm workspaces + turbo. TypeScript strict. No `any`.
+- The service-role Supabase client is never imported into a "use client" file.
+- All LLM calls route through @kayamo/ai `router.ts`.
+- One chapter per commit, prefixed `chNN:`.
