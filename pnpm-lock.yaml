@@ -258,6 +258,9 @@ importers:
 
   packages/food:
     dependencies:
+      '@kayamo/db':
+        specifier: workspace:*
+        version: link:../db
       zod:
         specifier: ^4
         version: 4.4.3
@@ -265,6 +268,9 @@ importers:
       '@kayamo/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       eslint:
         specifier: ^9
         version: 9.39.5(jiti@2.7.0)

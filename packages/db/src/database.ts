@@ -69,5 +69,6 @@ export type Workout = Database['public']['Tables']['workouts']['Row'];
 export type WorkoutInsert = Database['public']['Tables']['workouts']['Insert'];
 export type WorkoutSet = Database['public']['Tables']['workout_sets']['Row'];
 export type Serving = Database['public']['Tables']['servings']['Row'];
+export type ServingInsert = Database['public']['Tables']['servings']['Insert'];
 export type Recipe = Database['public']['Tables']['recipes']['Row'];
 export type AgentRun = Database['public']['Tables']['agent_runs']['Row'];

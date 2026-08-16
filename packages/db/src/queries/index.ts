@@ -1,5 +1,5 @@
 export type { DbClient } from './client';
-export { DbQueryError, isUnauthorizedError } from './errors';
+export { DbQueryError, isUnauthorizedError, isUniqueViolation } from './errors';
 export {
   clampUpdatedAt,
   clampUpdatedAtIso,
@@ -13,7 +13,16 @@ export {
   upsertFoodEntry,
 } from './food-entries';
 export type { FoodEntryWrite, UpsertResult } from './food-entries';
-export { getFood, insertUserFood, listServings, listVisibleFoods, tombstoneUserFood } from './foods';
+export {
+  getFood,
+  getFoodBySource,
+  insertCanonicalFood,
+  insertServings,
+  insertUserFood,
+  listServings,
+  listVisibleFoods,
+  tombstoneUserFood,
+} from './foods';
 export { getProfile, updateProfile } from './profiles';
 export { insertWeightLog, listWeightLogsByLogicalDate, tombstoneWeightLog } from './weight-logs';
 export {

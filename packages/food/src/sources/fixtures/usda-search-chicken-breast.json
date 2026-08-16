@@ -1,0 +1,296 @@
+{
+  "foods": [
+    {
+      "fdcId": 171140,
+      "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, braised",
+      "dataType": "SR Legacy",
+      "brandName": null,
+      "brandOwner": null,
+      "gtinUpc": null,
+      "servingSize": null,
+      "servingSizeUnit": null,
+      "householdServingFullText": null,
+      "score": 3529.8567,
+      "foodNutrients": [
+        {
+          "nutrientId": 1004,
+          "nutrientName": "Total lipid (fat)",
+          "unitName": "G",
+          "value": 3.24
+        },
+        {
+          "nutrientId": 1005,
+          "nutrientName": "Carbohydrate, by difference",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1008,
+          "nutrientName": "Energy",
+          "unitName": "KCAL",
+          "value": 157
+        },
+        {
+          "nutrientId": 2000,
+          "nutrientName": "Total Sugars",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1003,
+          "nutrientName": "Protein",
+          "unitName": "G",
+          "value": 32.1
+        },
+        {
+          "nutrientId": 1062,
+          "nutrientName": "Energy",
+          "unitName": "kJ",
+          "value": 659
+        },
+        {
+          "nutrientId": 1079,
+          "nutrientName": "Fiber, total dietary",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1093,
+          "nutrientName": "Sodium, Na",
+          "unitName": "MG",
+          "value": 47
+        }
+      ]
+    },
+    {
+      "fdcId": 331960,
+      "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, braised",
+      "dataType": "Foundation",
+      "brandName": null,
+      "brandOwner": null,
+      "gtinUpc": null,
+      "servingSize": null,
+      "servingSizeUnit": null,
+      "householdServingFullText": null,
+      "score": 3529.8567,
+      "foodNutrients": [
+        {
+          "nutrientId": 1004,
+          "nutrientName": "Total lipid (fat)",
+          "unitName": "G",
+          "value": 3.24
+        },
+        {
+          "nutrientId": 1005,
+          "nutrientName": "Carbohydrate, by difference",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1008,
+          "nutrientName": "Energy",
+          "unitName": "KCAL",
+          "value": 166
+        },
+        {
+          "nutrientId": 1003,
+          "nutrientName": "Protein",
+          "unitName": "G",
+          "value": 32.1
+        },
+        {
+          "nutrientId": 1062,
+          "nutrientName": "Energy",
+          "unitName": "kJ",
+          "value": 695
+        },
+        {
+          "nutrientId": 1093,
+          "nutrientName": "Sodium, Na",
+          "unitName": "MG",
+          "value": 47
+        }
+      ]
+    },
+    {
+      "fdcId": 171535,
+      "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, with added solution, cooked, braised",
+      "dataType": "SR Legacy",
+      "brandName": null,
+      "brandOwner": null,
+      "gtinUpc": null,
+      "servingSize": null,
+      "servingSizeUnit": null,
+      "householdServingFullText": null,
+      "score": 2094.4812,
+      "foodNutrients": [
+        {
+          "nutrientId": 1004,
+          "nutrientName": "Total lipid (fat)",
+          "unitName": "G",
+          "value": 3.61
+        },
+        {
+          "nutrientId": 1005,
+          "nutrientName": "Carbohydrate, by difference",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1008,
+          "nutrientName": "Energy",
+          "unitName": "KCAL",
+          "value": 145
+        },
+        {
+          "nutrientId": 2000,
+          "nutrientName": "Total Sugars",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1003,
+          "nutrientName": "Protein",
+          "unitName": "G",
+          "value": 28.2
+        },
+        {
+          "nutrientId": 1062,
+          "nutrientName": "Energy",
+          "unitName": "kJ",
+          "value": 609
+        },
+        {
+          "nutrientId": 1079,
+          "nutrientName": "Fiber, total dietary",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1093,
+          "nutrientName": "Sodium, Na",
+          "unitName": "MG",
+          "value": 172
+        }
+      ]
+    },
+    {
+      "fdcId": 171534,
+      "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled",
+      "dataType": "SR Legacy",
+      "brandName": null,
+      "brandOwner": null,
+      "gtinUpc": null,
+      "servingSize": null,
+      "servingSizeUnit": null,
+      "householdServingFullText": null,
+      "score": 2034.5769,
+      "foodNutrients": [
+        {
+          "nutrientId": 1003,
+          "nutrientName": "Protein",
+          "unitName": "G",
+          "value": 30.5
+        },
+        {
+          "nutrientId": 1062,
+          "nutrientName": "Energy",
+          "unitName": "kJ",
+          "value": 631
+        },
+        {
+          "nutrientId": 1079,
+          "nutrientName": "Fiber, total dietary",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1093,
+          "nutrientName": "Sodium, Na",
+          "unitName": "MG",
+          "value": 52
+        },
+        {
+          "nutrientId": 1004,
+          "nutrientName": "Total lipid (fat)",
+          "unitName": "G",
+          "value": 3.17
+        },
+        {
+          "nutrientId": 1005,
+          "nutrientName": "Carbohydrate, by difference",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1008,
+          "nutrientName": "Energy",
+          "unitName": "KCAL",
+          "value": 151
+        },
+        {
+          "nutrientId": 2000,
+          "nutrientName": "Total Sugars",
+          "unitName": "G",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "fdcId": 2187885,
+      "description": "CHICKEN BREAST",
+      "dataType": "Branded",
+      "brandName": "GIANT EAGLE",
+      "brandOwner": "Giant Eagle, Inc.",
+      "gtinUpc": "030034086411",
+      "servingSize": 284,
+      "servingSizeUnit": "g",
+      "householdServingFullText": "1 CHICKEN BREAST",
+      "score": 1211.7025,
+      "foodNutrients": [
+        {
+          "nutrientId": 1003,
+          "nutrientName": "Protein",
+          "unitName": "G",
+          "value": 20.4
+        },
+        {
+          "nutrientId": 1004,
+          "nutrientName": "Total lipid (fat)",
+          "unitName": "G",
+          "value": 8.1
+        },
+        {
+          "nutrientId": 1005,
+          "nutrientName": "Carbohydrate, by difference",
+          "unitName": "G",
+          "value": 1.06
+        },
+        {
+          "nutrientId": 1008,
+          "nutrientName": "Energy",
+          "unitName": "KCAL",
+          "value": 165
+        },
+        {
+          "nutrientId": 2000,
+          "nutrientName": "Total Sugars",
+          "unitName": "G",
+          "value": 0.7
+        },
+        {
+          "nutrientId": 1079,
+          "nutrientName": "Fiber, total dietary",
+          "unitName": "G",
+          "value": 0
+        },
+        {
+          "nutrientId": 1093,
+          "nutrientName": "Sodium, Na",
+          "unitName": "MG",
+          "value": 433
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "status": 1,
+  "code": "3017620422003",
+  "product": {
+    "product_name": "Nutella",
+    "brands": "Nutella, Ferrero, Yum yum",
+    "code": "3017620422003",
+    "serving_size": null,
+    "serving_quantity": null,
+    "quantity": "",
+    "nutriments": {
+      "energy-kcal_100g": 539,
+      "energy-kcal": 539,
+      "energy_100g": 2252,
+      "proteins_100g": 6.3,
+      "carbohydrates_100g": 57.5,
+      "fat_100g": 30.9,
+      "sugars_100g": 56.3,
+      "sodium_100g": 0.0428,
+      "salt_100g": 0.107
+    }
+  }
+}

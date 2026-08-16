@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { LoginForm } from './login-form';
 
 export default async function LoginPage({
@@ -24,6 +25,14 @@ export default async function LoginPage({
           error={params.error ?? null}
         />
       </div>
+      <p className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-5">
+        <Link
+          href="/about"
+          className="font-data text-caption uppercase tracking-[0.14em] text-muted hover:text-text"
+        >
+          About food data
+        </Link>
+      </p>
     </main>
   );
 }

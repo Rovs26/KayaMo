@@ -1,0 +1,96 @@
+{
+  "fdcId": 171140,
+  "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, braised",
+  "dataType": "SR Legacy",
+  "brandName": null,
+  "gtinUpc": null,
+  "servingSize": null,
+  "servingSizeUnit": null,
+  "householdServingFullText": null,
+  "foodNutrients": [
+    {
+      "amount": 157,
+      "nutrient": {
+        "id": 1008,
+        "name": "Energy",
+        "unitName": "kcal"
+      }
+    },
+    {
+      "amount": 659,
+      "nutrient": {
+        "id": 1062,
+        "name": "Energy",
+        "unitName": "kJ"
+      }
+    },
+    {
+      "amount": 32.06,
+      "nutrient": {
+        "id": 1003,
+        "name": "Protein",
+        "unitName": "g"
+      }
+    },
+    {
+      "amount": 3.24,
+      "nutrient": {
+        "id": 1004,
+        "name": "Total lipid (fat)",
+        "unitName": "g"
+      }
+    },
+    {
+      "amount": 0,
+      "nutrient": {
+        "id": 1005,
+        "name": "Carbohydrate, by difference",
+        "unitName": "g"
+      }
+    },
+    {
+      "amount": 0,
+      "nutrient": {
+        "id": 1079,
+        "name": "Fiber, total dietary",
+        "unitName": "g"
+      }
+    },
+    {
+      "amount": 0,
+      "nutrient": {
+        "id": 2000,
+        "name": "Total Sugars",
+        "unitName": "g"
+      }
+    },
+    {
+      "amount": 47,
+      "nutrient": {
+        "id": 1093,
+        "name": "Sodium, Na",
+        "unitName": "mg"
+      }
+    }
+  ],
+  "foodPortions": [
+    {
+      "gramWeight": 85,
+      "amount": 3,
+      "modifier": "oz",
+      "measureUnit": {
+        "name": "undetermined"
+      },
+      "portionDescription": null
+    },
+    {
+      "gramWeight": 181,
+      "amount": 1,
+      "modifier": "piece",
+      "measureUnit": {
+        "name": "undetermined"
+      },
+      "portionDescription": null
+    }
+  ]
+}

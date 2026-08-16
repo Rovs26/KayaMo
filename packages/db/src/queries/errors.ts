@@ -27,3 +27,11 @@ export function isUnauthorizedError(error: unknown): boolean {
   }
   return false;
 }
+
+export function isUniqueViolation(error: unknown): boolean {
+  if (error instanceof DbQueryError) return error.code === '23505';
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code?: string }).code === '23505';
+  }
+  return false;
+}
