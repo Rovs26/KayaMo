@@ -9,10 +9,10 @@ export {
 export {
   memoryResolveCatalog,
   phCoreToCatalog,
-  yamlPhCoreCatalog,
   type CatalogFood,
   type ResolveCatalog,
 } from './catalog';
+export { yamlPhCoreCatalog } from './catalog-yaml';
 export { foodRowToCatalog, supabaseResolveCatalog } from './catalog-supabase';
 export { DATA_LICENSES, OFF_ATTRIBUTION, USDA_SOURCE_NOTE } from './licenses';
 export {

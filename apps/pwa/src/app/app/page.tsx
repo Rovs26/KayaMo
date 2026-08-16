@@ -21,6 +21,12 @@ export default async function AppHome() {
       {user ? <TodayLog userId={user.id} /> : null}
       <nav className="mt-8 flex flex-col gap-3">
         <Link
+          href="/app/foods/search"
+          className="font-body text-body text-accent underline-offset-4 hover:underline"
+        >
+          Search foods
+        </Link>
+        <Link
           href="/app/foods/barcode"
           className="font-body text-body text-accent underline-offset-4 hover:underline"
         >

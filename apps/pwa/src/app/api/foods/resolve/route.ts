@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const text = (params.get('q') ?? '').trim().slice(0, 200);
   const barcode = (params.get('barcode') ?? '').trim().slice(0, 20);
+  const localOnly = params.get('local') === '1';
   if (!text && !barcode) {
     return NextResponse.json({ error: 'q or barcode is required.' }, { status: 400 });
   }
@@ -36,16 +37,24 @@ export async function GET(request: Request) {
       user.id,
       {
         catalog: supabaseResolveCatalog(supabase),
-        cache: supabaseCanonicalStore(createServiceSupabase()),
-        network: {
-          searchOff: (query) => searchOff(query),
-          lookupOffBarcode: (code) => lookupOffBarcode(code),
-          searchUsda: (query) => searchUsda(query),
-        },
-        queryCache,
+        ...(localOnly
+          ? {}
+          : {
+              cache: supabaseCanonicalStore(createServiceSupabase()),
+              network: {
+                searchOff: (query: string) => searchOff(query),
+                lookupOffBarcode: (code: string) => lookupOffBarcode(code),
+                searchUsda: (query: string) => searchUsda(query),
+              },
+              queryCache,
+            }),
       },
     );
-    return NextResponse.json({ candidates, autoPick: shouldAutoPick(candidates) });
+    return NextResponse.json({
+      candidates,
+      autoPick: shouldAutoPick(candidates),
+      stage: localOnly ? 'local' : 'full',
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Resolve failed';
     return NextResponse.json({ error: message }, { status: 502 });

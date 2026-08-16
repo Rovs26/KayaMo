@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { memoryResolveCatalog, phCoreToCatalog, yamlPhCoreCatalog } from './catalog';
+import { memoryResolveCatalog, phCoreToCatalog } from './catalog';
 import type { CatalogFood } from './catalog';
+import { yamlPhCoreCatalog } from './catalog-yaml';
 import { loadPhCoreYaml } from './ph-core/io';
 import { createResolveQueryCache, resolveFood, shouldAutoPick } from './resolve';
 import type { NormalizedFood } from './types';

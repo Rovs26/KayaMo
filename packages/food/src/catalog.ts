@@ -1,4 +1,3 @@
-import { loadPhCoreYaml } from './ph-core/io';
 import type { PhCoreFood } from './ph-core/schema';
 import type { ParsedFoodQuery } from './query-parse';
 import type { ResolveSource } from './score';
@@ -18,6 +17,7 @@ export type CatalogFood = {
   confidence: number;
   servings: FoodServing[];
   createdBy: string | null;
+  verified?: boolean;
   attribution?: string;
   sourceNote?: string;
 };
@@ -68,6 +68,7 @@ export function phCoreToCatalog(food: PhCoreFood): CatalogFood {
       isDefault: serving.is_default === true,
     })),
     createdBy: null,
+    ...(food.verified ? { verified: true } : {}),
     sourceNote: food.source_note,
   };
 }
@@ -96,9 +97,4 @@ export function memoryResolveCatalog(opts: {
       return next;
     },
   };
-}
-
-export function yamlPhCoreCatalog(foods?: PhCoreFood[]): ResolveCatalog {
-  const list = foods ?? loadPhCoreYaml().foods;
-  return memoryResolveCatalog({ foods: list.map(phCoreToCatalog) });
 }

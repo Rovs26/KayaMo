@@ -30,6 +30,7 @@ export type FoodCandidate = {
   portion: ResolvedPortion;
   attribution?: string;
   estimate?: boolean;
+  verified?: boolean;
 };
 
 export type ResolveNetwork = {
@@ -125,6 +126,7 @@ function toCandidate(
     servings: food.servings,
     portion: resolvePortion(parsed, food.servings, food.per100g.kcal),
     ...(food.attribution ? { attribution: food.attribution } : {}),
+    ...(food.verified ? { verified: true } : {}),
   };
 }
 

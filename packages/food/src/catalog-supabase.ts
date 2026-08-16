@@ -56,6 +56,7 @@ export function foodRowToCatalog(food: Food, servings: Serving[], aliases: strin
     confidence: fromNumericString(food.confidence),
     servings: servingsFor(servings),
     createdBy: food.created_by,
+    ...(food.verified_by_user ? { verified: true } : {}),
     ...(food.attribution ? { attribution: food.attribution } : {}),
     ...(food.source_note ? { sourceNote: food.source_note } : {}),
   };
