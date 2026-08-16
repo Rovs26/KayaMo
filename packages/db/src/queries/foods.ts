@@ -80,6 +80,17 @@ export async function listServings(client: DbClient, foodId: string): Promise<Se
   return data ?? [];
 }
 
+export async function listFoodsBySource(client: DbClient, source: string): Promise<Food[]> {
+  const { data, error } = await client
+    .from('foods')
+    .select('*')
+    .eq('source', source)
+    .is('deleted_at', null)
+    .order('name', { ascending: true });
+  throwIfError(error);
+  return data ?? [];
+}
+
 export async function getFoodBySource(
   client: DbClient,
   source: string,

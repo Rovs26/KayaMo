@@ -19,6 +19,7 @@ export {
   insertCanonicalFood,
   insertServings,
   insertUserFood,
+  listFoodsBySource,
   listServings,
   listVisibleFoods,
   tombstoneUserFood,

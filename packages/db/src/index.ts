@@ -1,4 +1,5 @@
 export { PACKAGE, getPublicSupabaseEnv, getServiceSupabaseEnv, isDbTestConfigured, isSupabaseConfigured } from './env';
+export { loadRootEnv } from './load-root-env';
 export {
   createBrowserSupabase,
   createCookieSupabase,
@@ -33,6 +34,7 @@ export {
   insertFoodEntry,
   insertServings,
   insertUserFood,
+  listFoodsBySource,
   insertWeightLog,
   insertWorkout,
   listAgentRuns,
@@ -52,4 +54,6 @@ export {
   updateProfile,
   upsertFoodEntry,
 } from './queries';
+export { upsertPhCoreFoods } from './ph-core';
+export type { PhCoreFoodRow } from './ph-core';
 export type { DbClient, FoodEntryWrite, UpsertResult } from './queries';

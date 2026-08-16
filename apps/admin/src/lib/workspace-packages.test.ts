@@ -5,6 +5,7 @@ describe('@kayamo/* aliases', () => {
   it('resolve from admin', () => {
     expect(workspacePackages).toEqual({
       db: '@kayamo/db',
+      food: '@kayamo/food',
       ui: '@kayamo/ui',
     });
   });

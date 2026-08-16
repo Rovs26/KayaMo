@@ -1,3 +1,3 @@
-- `build-ph-core.ts` — validate data/ph-core/foods.yaml and upsert (Chapter 7)
+- `build-ph-core.ts` — validate data/ph-core/foods.yaml and upsert (Chapter 7). `--check` skips the database write.
 - `seed.ts` — seed dev data (Chapter 4)
 - `simulate-tdee.ts` — 12-week synthetic personas for the TDEE engine (Chapter 18)

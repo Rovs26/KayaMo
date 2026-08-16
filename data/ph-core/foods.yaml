@@ -14,30 +14,563 @@ foods:
     name: Kanin (white rice, cooked)
     name_tl: [kanin, rice, sinaing, bigas na luto]
     category: staple
-    per100g: { kcal: 130, protein: 2.7, carbs: 28.2, fat: 0.3, fiber: 0.4, sodium_mg: 1 }
+    per100g: { kcal: 130, protein: 2.7, carbs: 28.2, fat: 0.3, fiber: 0.4, sugar: 0.1, sodium_mg: 1 }
     servings:
       - { label: "1 tasa", grams: 200, is_default: true }
       - { label: "1/2 tasa", grams: 100 }
-      - { label: "1 cup (rice cooker cup)", grams: 180 }
-    typical_prep: Plain steamed, no salt or oil added.
-    source_note: USDA FDC "Rice, white, long-grain, regular, cooked, unenriched".
+      - { label: "1 rice-cooker cup", grams: 180 }
+    typical_prep: Plain steamed, no salt or oil.
+    source_note: USDA FDC "Rice, white, long-grain, regular, cooked, unenriched" per 100 g.
     confidence: 0.8
+
+  - id: sinangag
+    name: Sinangag (garlic fried rice)
+    name_tl: [sinangag, garlic rice, fried rice]
+    category: staple
+    per100g: { kcal: 154, protein: 2.7, carbs: 27.3, fat: 3.8, fiber: 0.4, sugar: 0.2, sodium_mg: 40 }
+    servings:
+      - { label: "1 tasa", grams: 180, is_default: true }
+      - { label: "1/2 tasa", grams: 90 }
+    typical_prep: Day-old kanin fried with garlic and a little oil.
+    source_note: >
+      400 g USDA cooked white rice + 15 g vegetable oil + 10 g garlic, mixed
+      then scaled to 100 g. Pinch of salt. No soy sauce in this baseline.
+    confidence: 0.55
 
   - id: adobong-manok
     name: Chicken adobo
     name_tl: [adobong manok, adobo, chicken adobo]
     category: ulam
-    per100g: { kcal: 190, protein: 17.0, carbs: 2.1, fat: 12.4, fiber: 0.1, sodium_mg: 620 }
+    per100g: { kcal: 190, protein: 17.0, carbs: 2.1, fat: 12.4, fiber: 0.1, sugar: 1.0, sodium_mg: 620 }
     servings:
       - { label: "1 serving (1 hita + sauce)", grams: 150, is_default: true }
       - { label: "1 piraso (thigh)", grams: 110 }
-      - { label: "1 order (carinderia)", grams: 130 }
-    typical_prep: >
-      Bone-in thigh, skin on. Per 1kg chicken: 60ml soy sauce, 60ml cane
-      vinegar, 15ml oil, garlic, bay, peppercorn. Sauce partially reduced;
-      assumes roughly half the marinade is consumed with the serving.
+      - { label: "1 order", grams: 130 }
+    typical_prep: Bone-in thigh, skin on, sauce reduced and spooned over.
     source_note: >
-      Ingredient decomposition from USDA FDC (chicken thigh with skin,
-      cooked, roasted; soy sauce; vegetable oil). Sodium dominated by soy
-      sauce — verify against your own recipe, this varies enormously.
+      Per 1 kg chicken: 60 ml soy sauce, 60 ml vinegar, 15 ml oil, garlic, bay.
+      USDA FDC chicken thigh with skin (cooked) + soy sauce + vegetable oil.
+      Assumes about half the marinade is eaten with the meat.
     confidence: 0.6
+
+  - id: adobong-baboy
+    name: Pork adobo
+    name_tl: [adobong baboy, pork adobo]
+    category: ulam
+    per100g: { kcal: 226, protein: 18.0, carbs: 2.5, fat: 16.0, fiber: 0.1, sugar: 1.2, sodium_mg: 680 }
+    servings:
+      - { label: "1 serving", grams: 140, is_default: true }
+      - { label: "1 piraso", grams: 80 }
+      - { label: "1 order", grams: 130 }
+    typical_prep: Pork shoulder cubes simmered in soy-vinegar until glossy.
+    source_note: >
+      85 g USDA pork shoulder (cooked) + 8 g soy sauce + 5 g vinegar + 2 g
+      vegetable oil per 100 g plated food. Sodium is soy-driven and varies.
+    confidence: 0.55
+
+  - id: sinigang-na-baboy
+    name: Sinigang na baboy
+    name_tl: [sinigang, sinigang baboy, pork sinigang]
+    category: ulam
+    per100g: { kcal: 104, protein: 8.0, carbs: 3.5, fat: 6.5, fiber: 0.8, sugar: 1.5, sodium_mg: 380 }
+    servings:
+      - { label: "1 bowl", grams: 350, is_default: true }
+      - { label: "1 order (sabaw + meat)", grams: 300 }
+    typical_prep: Tamarind broth with kangkong, sitaw, radish, tomato.
+    source_note: >
+      Assumed 30 g cooked pork (USDA pork spare ribs, cooked) + 15 g mixed
+      vegetables + 55 g tamarind-patis broth per 100 g. Broth-heavy plate.
+    confidence: 0.5
+
+  - id: tinola
+    name: Tinola
+    name_tl: [tinola, chicken tinola, tino-la]
+    category: ulam
+    per100g: { kcal: 72, protein: 7.0, carbs: 3.0, fat: 3.5, fiber: 0.6, sugar: 1.8, sodium_mg: 280 }
+    servings:
+      - { label: "1 bowl", grams: 350, is_default: true }
+      - { label: "1 order", grams: 300 }
+    typical_prep: Chicken broth with green papaya and pepper leaves.
+    source_note: >
+      25 g USDA chicken stewed (meat and skin) + 20 g green papaya + 55 g
+      ginger-garlic broth per 100 g. Light soup; kcal is mostly the chicken.
+    confidence: 0.55
+
+  - id: kare-kare
+    name: Kare-kare
+    name_tl: [kare-kare, karekare]
+    category: ulam
+    per100g: { kcal: 259, protein: 15.5, carbs: 6.0, fat: 19.2, fiber: 1.8, sugar: 2.5, sodium_mg: 420 }
+    servings:
+      - { label: "1 serving", grams: 250, is_default: true }
+      - { label: "1 order", grams: 220 }
+    typical_prep: Oxtail and tripe in peanut sauce with eggplant and sitaw.
+    source_note: >
+      40 g USDA beef oxtail (cooked) + 35 g peanut-sauce mix (USDA peanuts +
+      rice flour + stock) + 25 g eggplant/sitaw per 100 g. Bagoong served
+      on the side is not included in these numbers.
+    confidence: 0.5
+
+  - id: bistek
+    name: Bistek Tagalog
+    name_tl: [bistek, bistek tagalog, beef steak]
+    category: ulam
+    per100g: { kcal: 178, protein: 23.5, carbs: 3.0, fat: 8.0, fiber: 0.4, sugar: 1.5, sodium_mg: 720 }
+    servings:
+      - { label: "1 serving", grams: 160, is_default: true }
+      - { label: "1 order", grams: 150 }
+    typical_prep: Thin beef sirloin with onion rings in soy-calamansi.
+    source_note: >
+      80 g USDA beef sirloin (cooked, lean) + 10 g soy sauce + 10 g onion
+      per 100 g. Calamansi treated like lemon juice (kcal negligible).
+    confidence: 0.55
+
+  - id: menudo
+    name: Menudo
+    name_tl: [menudo, pork menudo]
+    category: ulam
+    per100g: { kcal: 170, protein: 12.0, carbs: 8.0, fat: 10.0, fiber: 1.2, sugar: 3.5, sodium_mg: 480 }
+    servings:
+      - { label: "1 serving", grams: 180, is_default: true }
+      - { label: "1 order", grams: 160 }
+    typical_prep: Pork and liver cubes with potato, carrot, tomato sauce.
+    source_note: >
+      USDA pork shoulder + pork liver + potato + carrot + tomato sauce,
+      assumed 45/10/20/10/15 by cooked weight. Raisins omitted in this baseline.
+    confidence: 0.5
+
+  - id: caldereta
+    name: Caldereta
+    name_tl: [caldereta, kaldereta, beef caldereta]
+    category: ulam
+    per100g: { kcal: 206, protein: 14.0, carbs: 6.0, fat: 14.0, fiber: 1.0, sugar: 3.0, sodium_mg: 520 }
+    servings:
+      - { label: "1 serving", grams: 200, is_default: true }
+      - { label: "1 order", grams: 180 }
+    typical_prep: Beef stew with tomato, liver spread, potato, bell pepper.
+    source_note: >
+      USDA beef stew meat (cooked) + liverwurst/liver spread + potato +
+      tomato sauce. Assumed 50/10/20/20 by cooked weight. Richer than menudo.
+    confidence: 0.5
+
+  - id: lechon-kawali
+    name: Lechon kawali
+    name_tl: [lechon kawali, lechon kawali pork, crispy pork belly]
+    category: ulam
+    per100g: { kcal: 445, protein: 10.0, carbs: 0.0, fat: 45.0, fiber: 0.0, sugar: 0.0, sodium_mg: 380 }
+    servings:
+      - { label: "1 serving (hiwa)", grams: 120, is_default: true }
+      - { label: "1 order", grams: 150 }
+    typical_prep: Boiled then deep-fried pork belly, salt only.
+    source_note: >
+      USDA pork belly (cooked) with extra rendered fat from deep-frying in
+      vegetable oil. No batter. Sawsawan (vinegar-soy) not included.
+    confidence: 0.5
+
+  - id: crispy-pata
+    name: Crispy pata
+    name_tl: [crispy pata, pata]
+    category: ulam
+    per100g: { kcal: 348, protein: 15.0, carbs: 0.5, fat: 32.0, fiber: 0.0, sugar: 0.0, sodium_mg: 420 }
+    servings:
+      - { label: "1 serving (hiwa)", grams: 150, is_default: true }
+      - { label: "1 order (sharing)", grams: 250 }
+    typical_prep: Deep-fried pork hock, skin on.
+    source_note: >
+      USDA pork leg (cooked) + skin/fat from deep-frying in vegetable oil.
+      More meat and less pure fat than lechon kawali. Dipping sauce excluded.
+    confidence: 0.45
+
+  - id: longganisa
+    name: Longganisa
+    name_tl: [longganisa, longganisa habihaba, skinless longganisa]
+    category: ulam
+    per100g: { kcal: 328, protein: 13.0, carbs: 6.0, fat: 28.0, fiber: 0.0, sugar: 4.0, sodium_mg: 780 }
+    servings:
+      - { label: "1 piraso", grams: 45, is_default: true }
+      - { label: "3 piraso", grams: 135 }
+    typical_prep: Pan-fried until caramelized; fat left in the pan not eaten.
+    source_note: >
+      USDA pork sausage (fresh, cooked) adjusted for a sweeter Filipino
+      mix — added sugar from brown sugar in the cure. Garlic-heavy Lucban-style
+      assumption, not hamonado-only.
+    confidence: 0.5
+
+  - id: tocino
+    name: Tocino
+    name_tl: [tocino, pork tocino]
+    category: ulam
+    per100g: { kcal: 258, protein: 14.0, carbs: 10.0, fat: 18.0, fiber: 0.0, sugar: 8.0, sodium_mg: 620 }
+    servings:
+      - { label: "1 serving", grams: 80, is_default: true }
+      - { label: "4 piraso", grams: 80 }
+    typical_prep: Pan-fried sweet cured pork until edges darken.
+    source_note: >
+      USDA pork fresh (cooked) plus a sugar-cure modeled as 8 g sugars / 100 g
+      from brown sugar in the marinade. Oil uptake from frying included.
+    confidence: 0.5
+
+  - id: tapa
+    name: Tapa
+    name_tl: [tapa, beef tapa]
+    category: ulam
+    per100g: { kcal: 216, protein: 22.0, carbs: 5.0, fat: 12.0, fiber: 0.0, sugar: 3.0, sodium_mg: 700 }
+    servings:
+      - { label: "1 serving", grams: 90, is_default: true }
+      - { label: "1 order", grams: 100 }
+    typical_prep: Thin beef strips, sweet-salty marinade, fried.
+    source_note: >
+      USDA beef (top round, cooked) + soy sauce + sugar in the marinade.
+      Oil from pan-frying included. Tapsilog garlic rice is logged separately.
+    confidence: 0.5
+
+  - id: hotdog
+    name: Hotdog
+    name_tl: [hotdog, red hotdog, tender juicy]
+    category: ulam
+    per100g: { kcal: 266, protein: 9.0, carbs: 8.0, fat: 22.0, fiber: 0.0, sugar: 3.0, sodium_mg: 890 }
+    servings:
+      - { label: "1 piraso", grams: 50, is_default: true }
+      - { label: "2 piraso", grams: 100 }
+    typical_prep: Fried or boiled Filipino red hotdog.
+    source_note: >
+      USDA frankfurter (beef and pork) with extra starch/sugar typical of
+      local red hotdogs. Brand variation is large — treat as a starting point.
+    confidence: 0.45
+
+  - id: daing-na-bangus
+    name: Daing na bangus
+    name_tl: [daing na bangus, daing bangus, milkfish daing]
+    category: ulam
+    per100g: { kcal: 184, protein: 18.0, carbs: 1.0, fat: 12.0, fiber: 0.0, sugar: 0.2, sodium_mg: 480 }
+    servings:
+      - { label: "1 piraso (belly)", grams: 120, is_default: true }
+      - { label: "1 order", grams: 150 }
+    typical_prep: Butterflied milkfish, vinegar-garlic overnight, fried.
+    source_note: >
+      USDA milkfish (raw) scaled to fried fish using vegetable oil uptake
+      similar to USDA fried fish. Vinegar marinade adds little kcal; salt/soy
+      in the daing mix drives sodium.
+    confidence: 0.5
+
+  - id: pritong-galunggong
+    name: Pritong galunggong
+    name_tl: [galunggong, pritong galunggong, fried scad]
+    category: ulam
+    per100g: { kcal: 179, protein: 20.0, carbs: 0.0, fat: 11.0, fiber: 0.0, sugar: 0.0, sodium_mg: 220 }
+    servings:
+      - { label: "1 piraso", grams: 80, is_default: true }
+      - { label: "2 piraso", grams: 160 }
+    typical_prep: Whole round scad, salted, fried.
+    source_note: >
+      USDA mackerel scad / similar small oily fish, fried in vegetable oil.
+      Bones not eaten; numbers are edible flesh plus skin. No batter.
+    confidence: 0.5
+
+  - id: tilapia
+    name: Pritong tilapia
+    name_tl: [tilapia, pritong tilapia, fried tilapia]
+    category: ulam
+    per100g: { kcal: 162, protein: 22.0, carbs: 0.5, fat: 8.0, fiber: 0.0, sugar: 0.0, sodium_mg: 180 }
+    servings:
+      - { label: "1 piraso", grams: 150, is_default: true }
+      - { label: "1 order", grams: 180 }
+    typical_prep: Whole tilapia, light salt, fried.
+    source_note: >
+      USDA tilapia (cooked, dry heat) plus vegetable-oil coating from frying.
+      No batter. Bones discarded.
+    confidence: 0.6
+
+  - id: lumpiang-shanghai
+    name: Lumpiang shanghai
+    name_tl: [lumpia shanghai, lumpiang shanghai, shanghai roll]
+    category: ulam
+    per100g: { kcal: 239, protein: 10.0, carbs: 16.0, fat: 15.0, fiber: 1.0, sugar: 2.0, sodium_mg: 480 }
+    servings:
+      - { label: "4 piraso", grams: 80, is_default: true }
+      - { label: "1 piraso", grams: 20 }
+    typical_prep: Thin fried spring rolls, pork and vegetable filling.
+    source_note: >
+      Filling: USDA ground pork (cooked) + carrot + onion. Wrapper: USDA
+      egg-roll wrapper. Deep-fried in vegetable oil; oil uptake estimated.
+    confidence: 0.5
+
+  - id: pancit-canton
+    name: Pancit canton
+    name_tl: [pancit canton, canton, pancit]
+    category: ulam
+    per100g: { kcal: 179, protein: 7.0, carbs: 22.0, fat: 7.0, fiber: 1.5, sugar: 2.0, sodium_mg: 620 }
+    servings:
+      - { label: "1 order", grams: 250, is_default: true }
+      - { label: "1 tasa", grams: 180 }
+    typical_prep: Stir-fried wheat noodles with meat and vegetables.
+    source_note: >
+      USDA egg noodles (cooked) + vegetable oil + small amounts of chicken
+      or pork + cabbage/carrot. Soy sauce for sodium. Dry pancit, not soup.
+    confidence: 0.5
+
+  - id: pancit-bihon
+    name: Pancit bihon
+    name_tl: [pancit bihon, bihon, bihon guisado]
+    category: ulam
+    per100g: { kcal: 157, protein: 4.0, carbs: 24.0, fat: 5.0, fiber: 1.2, sugar: 1.5, sodium_mg: 580 }
+    servings:
+      - { label: "1 order", grams: 250, is_default: true }
+      - { label: "1 tasa", grams: 180 }
+    typical_prep: Stir-fried rice noodles with veg and a little meat.
+    source_note: >
+      USDA rice noodles (cooked) + vegetable oil + cabbage/carrot + soy sauce.
+      Less protein than canton because rice noodles and less meat.
+    confidence: 0.5
+
+  - id: palabok
+    name: Palabok
+    name_tl: [palabok, pancit palabok]
+    category: ulam
+    per100g: { kcal: 192, protein: 8.0, carbs: 22.0, fat: 8.0, fiber: 1.0, sugar: 2.0, sodium_mg: 640 }
+    servings:
+      - { label: "1 order", grams: 280, is_default: true }
+      - { label: "1 tasa", grams: 200 }
+    typical_prep: Rice noodles, shrimp-pork sauce, egg, chicharon sprinkle.
+    source_note: >
+      USDA rice noodles + shrimp + pork + hard-cooked egg + a little fried
+      pork rinds on top. Sauce thickened with rice flour / cornstarch.
+    confidence: 0.45
+
+  - id: sisig
+    name: Sisig
+    name_tl: [sisig, pork sisig, sizzling sisig]
+    category: ulam
+    per100g: { kcal: 328, protein: 16.0, carbs: 3.0, fat: 28.0, fiber: 0.3, sugar: 1.5, sodium_mg: 720 }
+    servings:
+      - { label: "1 serving", grams: 180, is_default: true }
+      - { label: "1 order", grams: 200 }
+    typical_prep: Chopped pig face/belly, onion, chili, calamansi; sizzling plate.
+    source_note: >
+      USDA pork (cooked, fatty cuts) + onion. Mayo and egg versions vary;
+      this baseline is chopped pork with onion and a little oil, no mayo.
+    confidence: 0.45
+
+  - id: dinuguan
+    name: Dinuguan
+    name_tl: [dinuguan, dinuguan baboy, chocolate meat]
+    category: ulam
+    per100g: { kcal: 150, protein: 12.0, carbs: 3.0, fat: 10.0, fiber: 0.2, sugar: 0.5, sodium_mg: 450 }
+    servings:
+      - { label: "1 bowl", grams: 220, is_default: true }
+      - { label: "1 order", grams: 200 }
+    typical_prep: Pork offal stew in pork blood, vinegar, chili.
+    source_note: >
+      USDA pork (cooked) + pork blood (USDA blood sausage used only as a
+      nutrient stand-in for blood, not as a sausage) + vinegar. Puto on the
+      side is a separate food.
+    confidence: 0.4
+
+  - id: bicol-express
+    name: Bicol express
+    name_tl: [bicol express, bicol express pork]
+    category: ulam
+    per100g: { kcal: 258, protein: 11.0, carbs: 4.0, fat: 22.0, fiber: 1.2, sugar: 2.0, sodium_mg: 480 }
+    servings:
+      - { label: "1 serving", grams: 160, is_default: true }
+      - { label: "1 order", grams: 150 }
+    typical_prep: Pork in coconut milk with siling labuyo and bagoong.
+    source_note: >
+      USDA pork (cooked) + canned coconut milk + chili peppers. Bagoong
+      contributes sodium. Coconut cream versions will run higher in fat.
+    confidence: 0.5
+
+  - id: laing
+    name: Laing
+    name_tl: [laing, gabi leaves, pinangat]
+    category: ulam
+    per100g: { kcal: 162, protein: 3.0, carbs: 6.0, fat: 14.0, fiber: 2.5, sugar: 2.0, sodium_mg: 380 }
+    servings:
+      - { label: "1 serving", grams: 120, is_default: true }
+      - { label: "1 order", grams: 130 }
+    typical_prep: Dried taro leaves simmered in coconut milk with chili.
+    source_note: >
+      USDA taro leaves (cooked) + coconut milk. Little or no meat in this
+      baseline; pork bits would raise protein and fat.
+    confidence: 0.5
+
+  - id: ginisang-monggo
+    name: Ginisang monggo
+    name_tl: [monggo, ginisang monggo, munggo, balatong]
+    category: ulam
+    per100g: { kcal: 124, protein: 8.0, carbs: 14.0, fat: 4.0, fiber: 4.5, sugar: 1.5, sodium_mg: 320 }
+    servings:
+      - { label: "1 bowl", grams: 250, is_default: true }
+      - { label: "1 order", grams: 220 }
+    typical_prep: Mung beans guisado with garlic, tomato, malunggay, a little pork.
+    source_note: >
+      USDA mung beans (boiled) + vegetable oil saute + a small amount of
+      USDA pork. Malunggay leaves add micronutrients, little kcal.
+    confidence: 0.55
+
+  - id: chopsuey
+    name: Chopsuey
+    name_tl: [chopsuey, chop suey, chopsoy]
+    category: ulam
+    per100g: { kcal: 97, protein: 6.0, carbs: 7.0, fat: 5.0, fiber: 2.0, sugar: 3.0, sodium_mg: 400 }
+    servings:
+      - { label: "1 serving", grams: 200, is_default: true }
+      - { label: "1 order", grams: 180 }
+    typical_prep: Mixed vegetables stir-fried with a little meat in cornstarch sauce.
+    source_note: >
+      USDA mixed vegetables (cabbage, carrot, cauliflower) + a small amount
+      of chicken or pork + vegetable oil + soy-cornstarch sauce.
+    confidence: 0.55
+
+  - id: pinakbet
+    name: Pinakbet
+    name_tl: [pinakbet, pakbet]
+    category: ulam
+    per100g: { kcal: 84, protein: 4.0, carbs: 8.0, fat: 4.0, fiber: 2.5, sugar: 3.5, sodium_mg: 520 }
+    servings:
+      - { label: "1 serving", grams: 180, is_default: true }
+      - { label: "1 order", grams: 160 }
+    typical_prep: Native vegetables stewed with bagoong; little pork.
+    source_note: >
+      USDA eggplant, bitter gourd, okra, squash, yardlong bean + bagoong
+      (modeled with USDA fish sauce for sodium) + a little pork fat/oil.
+    confidence: 0.5
+
+  - id: ampalaya-con-carne
+    name: Ampalaya con carne
+    name_tl: [ampalaya con carne, ampalaya beef, ginisang ampalaya]
+    category: ulam
+    per100g: { kcal: 110, protein: 10.0, carbs: 4.0, fat: 6.0, fiber: 1.8, sugar: 1.5, sodium_mg: 380 }
+    servings:
+      - { label: "1 serving", grams: 180, is_default: true }
+      - { label: "1 order", grams: 160 }
+    typical_prep: Bitter melon strips with beef and onion, soy-oyster sauce.
+    source_note: >
+      USDA bitter melon (cooked) + beef sirloin (cooked) + vegetable oil +
+      soy sauce. 50/40/10 vegetable/beef/sauce by plated weight.
+    confidence: 0.55
+
+  - id: itlog-prito
+    name: Fried egg
+    name_tl: [itlog prito, prito na itlog, sunny side up, fried egg]
+    category: ulam
+    per100g: { kcal: 196, protein: 13.6, carbs: 0.9, fat: 14.8, fiber: 0.0, sugar: 0.4, sodium_mg: 207 }
+    servings:
+      - { label: "1 piraso", grams: 46, is_default: true }
+      - { label: "2 piraso", grams: 92 }
+    typical_prep: Fried in a little oil, yolk still soft or set.
+    source_note: USDA FDC "Egg, whole, cooked, fried". Oil amount varies by pan.
+    confidence: 0.7
+
+  - id: itlog-na-maalat
+    name: Itlog na maalat
+    name_tl: [itlog na maalat, salted egg, itlog pula]
+    category: merienda
+    per100g: { kcal: 183, protein: 13.0, carbs: 1.5, fat: 14.0, fiber: 0.0, sugar: 0.5, sodium_mg: 1200 }
+    servings:
+      - { label: "1 piraso (half)", grams: 35, is_default: true }
+      - { label: "1 piraso (whole)", grams: 70 }
+    typical_prep: Salted duck egg, often with tomato and rice.
+    source_note: >
+      USDA duck egg (whole, cooked) with sodium raised for a brine-cured
+      egg. Tomato on the side is a separate food. High sodium is expected.
+    confidence: 0.5
+
+  - id: tokwat-baboy
+    name: Tokwa't baboy
+    name_tl: [tokwat baboy, tokwa't baboy, tokwa at baboy]
+    category: ulam
+    per100g: { kcal: 168, protein: 12.0, carbs: 3.0, fat: 12.0, fiber: 0.8, sugar: 1.0, sodium_mg: 540 }
+    servings:
+      - { label: "1 serving", grams: 150, is_default: true }
+      - { label: "1 order", grams: 160 }
+    typical_prep: Fried tofu and boiled pork, vinegar-soy-onion sawsawan mixed in.
+    source_note: >
+      50 g USDA tofu (firm, cooked) + 40 g USDA pork (cooked) + 10 g
+      vinegar-soy dressing per 100 g. Frying oil on the tokwa included.
+    confidence: 0.5
+
+  - id: halo-halo
+    name: Halo-halo
+    name_tl: [halo-halo, halo halo, halo-halo special]
+    category: merienda
+    per100g: { kcal: 129, protein: 2.5, carbs: 22.0, fat: 3.5, fiber: 0.8, sugar: 18.0, sodium_mg: 45 }
+    servings:
+      - { label: "1 bowl", grams: 350, is_default: true }
+      - { label: "1 order (special)", grams: 400 }
+    typical_prep: Shaved ice, evaporated milk, sweet beans, ube, leche flan bits.
+    source_note: >
+      Weighted mix of USDA shaved ice (water), evaporated milk, sweetened
+      beans, jackfruit in syrup, and a small leche flan piece. Ice dilutes
+      kcal; shop versions vary a lot.
+    confidence: 0.4
+
+  - id: turon
+    name: Turon
+    name_tl: [turon, banana lumpia, turon saging]
+    category: merienda
+    per100g: { kcal: 226, protein: 2.0, carbs: 32.0, fat: 10.0, fiber: 1.5, sugar: 16.0, sodium_mg: 80 }
+    servings:
+      - { label: "1 piraso", grams: 80, is_default: true }
+      - { label: "2 piraso", grams: 160 }
+    typical_prep: Saba banana and brown sugar in lumpia wrapper, fried.
+    source_note: >
+      USDA banana (raw, slightly higher solids for saba) + lumpia wrapper
+      (USDA egg-roll wrapper) + brown sugar + vegetable oil from frying.
+    confidence: 0.5
+
+  - id: banana-cue
+    name: Banana cue
+    name_tl: [banana cue, bananaque, banana-q]
+    category: merienda
+    per100g: { kcal: 221, protein: 1.2, carbs: 36.0, fat: 8.0, fiber: 2.2, sugar: 20.0, sodium_mg: 15 }
+    servings:
+      - { label: "1 stick (2 saba)", grams: 160, is_default: true }
+      - { label: "1 saba", grams: 80 }
+    typical_prep: Deep-fried saba rolled in caramelized brown sugar.
+    source_note: >
+      USDA banana + brown sugar coating + vegetable oil uptake from deep
+      frying. Two saba per stick is a common street serving.
+    confidence: 0.5
+
+  - id: pandesal
+    name: Pandesal
+    name_tl: [pandesal, bread, tinapay]
+    category: staple
+    per100g: { kcal: 300, protein: 9.0, carbs: 55.0, fat: 5.0, fiber: 2.0, sugar: 6.0, sodium_mg: 420 }
+    servings:
+      - { label: "1 piraso", grams: 40, is_default: true }
+      - { label: "2 piraso", grams: 80 }
+    typical_prep: Soft roll, often eaten plain or with egg/keso.
+    source_note: >
+      USDA "Rolls, hamburger or hot dog, plain" scaled to a 40 g bakery
+      piece. Local bakeries differ; confirm against a specific store.
+    confidence: 0.5
+
+  - id: taho
+    name: Taho
+    name_tl: [taho, taho maghapon]
+    category: merienda
+    per100g: { kcal: 91, protein: 3.5, carbs: 16.0, fat: 1.5, fiber: 0.3, sugar: 12.0, sodium_mg: 20 }
+    servings:
+      - { label: "1 cup (street)", grams: 250, is_default: true }
+      - { label: "1 bowl", grams: 300 }
+    typical_prep: Warm silken tofu, arnibal (brown-sugar syrup), sago.
+    source_note: >
+      USDA tofu (silken) + brown-sugar syrup + cooked tapioca pearls
+      (USDA tapioca, pearl, cooked). Syrup amount is the main swing factor.
+    confidence: 0.5
+
+  - id: champorado
+    name: Champorado
+    name_tl: [champorado, tsampurado, chocolate rice]
+    category: merienda
+    per100g: { kcal: 141, protein: 3.5, carbs: 24.0, fat: 3.5, fiber: 1.2, sugar: 10.0, sodium_mg: 40 }
+    servings:
+      - { label: "1 bowl", grams: 250, is_default: true }
+      - { label: "1 tasa", grams: 200 }
+    typical_prep: Sticky rice cooked with tablea and sugar; milk optional on top.
+    source_note: >
+      USDA glutinous rice (cooked) + unsweetened cocoa (stand-in for tablea)
+      + sugar + a splash of whole milk. Tuyo on the side is a separate food.
+    confidence: 0.5
