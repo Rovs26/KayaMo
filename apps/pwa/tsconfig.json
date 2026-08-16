@@ -6,6 +6,7 @@
       "@kayamo/ai": ["../../packages/ai/src"],
       "@kayamo/core": ["../../packages/core/src"],
       "@kayamo/db": ["../../packages/db/src"],
+      "@kayamo/db/*": ["../../packages/db/src/*"],
       "@kayamo/food": ["../../packages/food/src"],
       "@kayamo/offline": ["../../packages/offline/src"],
       "@kayamo/ui": ["../../packages/ui/src"]

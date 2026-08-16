@@ -12,6 +12,8 @@ pnpm build
 pnpm test
 pnpm typecheck
 pnpm db:migrate
+npx supabase start    # local Postgres + Auth (Docker)
+npx supabase status   # URL, anon key, service role
 pnpm ph-core:build    # validate + upsert data/ph-core/foods.yaml
 pnpm mobile:sync      # copy PWA build into the Capacitor shell
 ```

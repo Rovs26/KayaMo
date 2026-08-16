@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@kayamo/db": ["../../packages/db/src"],
+      "@kayamo/db/*": ["../../packages/db/src/*"],
       "@kayamo/ui": ["../../packages/ui/src"]
     }
   },

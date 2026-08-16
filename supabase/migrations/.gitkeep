@@ -1,0 +1,2 @@
+# Keep this folder for Drizzle-generated SQL (Chapter 4).
+# Auth lives in the Supabase `auth` schema — no public tables in this chapter.
