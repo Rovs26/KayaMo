@@ -1,6 +1,6 @@
 import type { Food, FoodInsert, Serving, ServingInsert } from '../database';
 import type { DbClient } from './client';
-import { DbQueryError, isMissingRpcError, throwIfError } from './errors';
+import { DbQueryError, isMissingRpcError, isUniqueViolation, throwIfError } from './errors';
 import { clampUpdatedAtIso, omitServerCursor } from './lww';
 
 const CANONICAL_SOURCES = ['ph_core', 'usda_fdc', 'off', 'llm'] as const;
@@ -321,4 +321,34 @@ export async function getFoodLogCounts(
     counts.set(row.food_id, row.times_logged);
   }
   return counts;
+}
+
+export async function insertFoodAliases(
+  client: DbClient,
+  rows: Array<{ food_id: string; alias: string; updated_at: string }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await client.from('food_aliases').insert(
+    rows.map((row) => ({
+      food_id: row.food_id,
+      alias: row.alias,
+      updated_at: clampUpdatedAtIso(row.updated_at),
+    })),
+  );
+  if (error && isUniqueViolation(error)) return;
+  throwIfError(error);
+}
+
+export async function queueOffContribute(
+  client: DbClient,
+  params: { foodId: string; userId: string; updatedAt: string },
+): Promise<void> {
+  const { error } = await client.from('off_contribute_requests').insert({
+    food_id: params.foodId,
+    user_id: params.userId,
+    status: 'queued',
+    updated_at: clampUpdatedAtIso(params.updatedAt),
+  });
+  if (error && isUniqueViolation(error)) return;
+  throwIfError(error);
 }

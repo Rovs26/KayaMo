@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isLocalDevLoginEnabled } from '@/lib/local-dev-login';
 import { LoginForm } from './login-form';
 
 export default async function LoginPage({
@@ -23,6 +24,7 @@ export default async function LoginPage({
           sent={params.sent === '1'}
           setup={params.setup === '1'}
           error={params.error ?? null}
+          localDev={isLocalDevLoginEnabled()}
         />
       </div>
       <p className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-5">

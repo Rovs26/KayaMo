@@ -58,6 +58,19 @@ export {
 export { toPhCoreFoodRow } from './ph-core/to-row';
 export { resolvePortion } from './portion';
 export {
+  confirmConfidence,
+  draftFromOcr,
+  nutrientsFromLabel,
+  nutritionLabelOcrSchema,
+  OCR_LOW_CONFIDENCE,
+  USER_FOOD_CONFIDENCE_MAX,
+  userFoodConfirmSchema,
+  userFoodToRows,
+  type NutritionLabelOcr,
+  type UserFoodConfirm,
+  type UserFoodDraft,
+} from './label-ocr';
+export {
   parseFoodQuery,
   PH_UNITS,
   SIZE_MULTIPLIER,

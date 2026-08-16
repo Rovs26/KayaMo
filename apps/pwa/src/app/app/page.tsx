@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { NumberDisplay } from '@kayamo/ui';
 import { TodayLog } from './today-log';
@@ -18,6 +19,20 @@ export default async function AppHome() {
         <NumberDisplay value="—" unit="kcal" size="lg" />
       </div>
       {user ? <TodayLog userId={user.id} /> : null}
+      <nav className="mt-8 flex flex-col gap-3">
+        <Link
+          href="/app/foods/barcode"
+          className="font-body text-body text-accent underline-offset-4 hover:underline"
+        >
+          Look up a barcode
+        </Link>
+        <Link
+          href="/app/foods/add"
+          className="font-body text-body text-accent underline-offset-4 hover:underline"
+        >
+          Add a product
+        </Link>
+      </nav>
     </main>
   );
 }

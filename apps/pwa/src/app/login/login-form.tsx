@@ -1,14 +1,17 @@
 import { Button } from '@kayamo/ui';
-import { signInWithEmail, signInWithGoogle } from './actions';
+import { LOCAL_DEV_EMAIL } from '@/lib/local-dev-login';
+import { signInAsLocalDev, signInWithEmail, signInWithGoogle } from './actions';
 
 export function LoginForm({
   sent,
   error,
   setup,
+  localDev,
 }: {
   sent: boolean;
   error: string | null;
   setup: boolean;
+  localDev: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -57,6 +60,22 @@ export function LoginForm({
           Continue with Google
         </Button>
       </form>
+
+      {localDev && !setup ? (
+        <>
+          <p className="text-center font-data text-caption uppercase tracking-[0.14em] text-muted">
+            local only
+          </p>
+          <form action={signInAsLocalDev}>
+            <Button type="submit" variant="ghost" size="lg">
+              Skip login on this machine
+            </Button>
+          </form>
+          <p className="font-body text-caption text-muted">
+            Signs you in as {LOCAL_DEV_EMAIL}. Hidden in production.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }

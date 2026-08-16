@@ -20,6 +20,7 @@ export {
   getFoodsByIds,
   getFoodLogCounts,
   insertCanonicalFood,
+  insertFoodAliases,
   insertServings,
   insertUserFood,
   listFoodAliases,
@@ -27,6 +28,7 @@ export {
   listServings,
   listServingsByFoodIds,
   listVisibleFoods,
+  queueOffContribute,
   searchFoods,
   tombstoneUserFood,
 } from './foods';

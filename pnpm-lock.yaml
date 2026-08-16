@@ -147,6 +147,12 @@ importers:
 
   packages/ai:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^2
+        version: 2.0.118(zod@4.4.3)
+      '@kayamo/food':
+        specifier: workspace:*
+        version: link:../food
       ai:
         specifier: ^5
         version: 5.0.237(zod@4.4.3)
@@ -349,6 +355,12 @@ packages:
 
   '@ai-sdk/gateway@2.0.134':
     resolution: {integrity: sha512-n+dVco86tzsoQ5Lq8YI62ALsNQw37P5jJa/1NuzCtezfZCzH1UfgDWE3EZ0U1U3rqHlHFWV1N8D3QD5KBY9myg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@2.0.118':
+    resolution: {integrity: sha512-EkQYOcG74tbQDSq4PSqRHvPaMyQtfg7KDHQQXDqClqOvwRE/i6F4iSV0a/s8tImh96X4W+AaiASdLPIzYwt3vQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -3357,6 +3369,12 @@ snapshots:
       '@ai-sdk/provider': 2.0.3
       '@ai-sdk/provider-utils': 3.0.32(zod@4.4.3)
       '@vercel/oidc': 3.1.0
+      zod: 4.4.3
+
+  '@ai-sdk/openai@2.0.118(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.3
+      '@ai-sdk/provider-utils': 3.0.32(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/provider-utils@3.0.32(zod@4.4.3)':
