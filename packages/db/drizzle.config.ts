@@ -1,7 +1,10 @@
+import { loadRootEnv } from './src/load-root-env';
 import { defineConfig } from 'drizzle-kit';
 
+loadRootEnv();
+
 export default defineConfig({
-  schema: './src/schema.ts',
+  schema: './src/schema/index.ts',
   out: '../../supabase/migrations',
   dialect: 'postgresql',
   dbCredentials: {
