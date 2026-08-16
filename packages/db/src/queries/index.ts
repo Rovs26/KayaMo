@@ -1,5 +1,5 @@
 export type { DbClient } from './client';
-export { DbQueryError, isUnauthorizedError, isUniqueViolation } from './errors';
+export { DbQueryError, isMissingRpcError, isUnauthorizedError, isUniqueViolation } from './errors';
 export {
   clampUpdatedAt,
   clampUpdatedAtIso,
@@ -16,14 +16,21 @@ export type { FoodEntryWrite, UpsertResult } from './food-entries';
 export {
   getFood,
   getFoodBySource,
+  getFoodsByBarcode,
+  getFoodsByIds,
+  getFoodLogCounts,
   insertCanonicalFood,
   insertServings,
   insertUserFood,
+  listFoodAliases,
   listFoodsBySource,
   listServings,
+  listServingsByFoodIds,
   listVisibleFoods,
+  searchFoods,
   tombstoneUserFood,
 } from './foods';
+export type { FoodSearchHit } from './foods';
 export { getProfile, updateProfile } from './profiles';
 export { insertWeightLog, listWeightLogsByLogicalDate, tombstoneWeightLog } from './weight-logs';
 export {

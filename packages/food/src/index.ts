@@ -6,6 +6,14 @@ export {
   supabaseCanonicalStore,
   type CanonicalFoodStore,
 } from './cache';
+export {
+  memoryResolveCatalog,
+  phCoreToCatalog,
+  yamlPhCoreCatalog,
+  type CatalogFood,
+  type ResolveCatalog,
+} from './catalog';
+export { foodRowToCatalog, supabaseResolveCatalog } from './catalog-supabase';
 export { DATA_LICENSES, OFF_ATTRIBUTION, USDA_SOURCE_NOTE } from './licenses';
 export {
   dedupeKey,
@@ -20,6 +28,7 @@ export {
   toGrams,
   withDefaultServings,
 } from './normalize';
+export { fromNumericString, toConfidenceString, toNutrientString } from './numeric';
 export {
   atwaterDelta,
   atwaterKcal,
@@ -47,10 +56,36 @@ export {
   type PhCoreFile,
 } from './ph-core/schema';
 export { toPhCoreFoodRow } from './ph-core/to-row';
+export { resolvePortion } from './portion';
+export {
+  parseFoodQuery,
+  PH_UNITS,
+  SIZE_MULTIPLIER,
+  SIZE_WORDS,
+  type FoodQuery,
+  type ParsedFoodQuery,
+} from './query-parse';
+export {
+  createResolveQueryCache,
+  resolveFood,
+  shouldAutoPick,
+  type FoodCandidate,
+  type ResolveDeps,
+  type ResolveNetwork,
+} from './resolve';
+export {
+  affinityBoost,
+  AUTO_PICK_MIN,
+  LLM_CONFIDENCE_CAP,
+  rankScore,
+  SOURCE_PRIORITY,
+  type ResolveSource,
+} from './score';
 export { searchExternalFoods, type SearchExternalDeps } from './search';
 export { lookupOffBarcode, mapOffProduct, searchOff, type OffDeps } from './sources/off';
 export { getUsdaFood, mapUsdaFood, searchUsda, type UsdaDeps } from './sources/usda';
 export { HourlyLimiter, RateLimitError, noopLimiter } from './sources/limiter';
+export { aliasMatchScore, bestAliasMatch, trigramSimilarity } from './trigram';
 export {
   FoodSourceError,
   normalizedFoodSchema,

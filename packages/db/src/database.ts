@@ -48,6 +48,14 @@ export type Database = {
         Args: { p_at: string; p_tz: string | null; p_day_starts_at: string | null };
         Returns: string;
       };
+      kayamo_search_foods: {
+        Args: { p_query: string; p_limit?: number };
+        Returns: { food_id: string; similarity: number }[];
+      };
+      kayamo_food_log_counts: {
+        Args: { p_food_ids: string[] };
+        Returns: { food_id: string; times_logged: number }[];
+      };
     };
     Enums: {
       [_ in never]: never;

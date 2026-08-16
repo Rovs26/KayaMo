@@ -15,6 +15,13 @@
       "when": 1771283100000,
       "tag": "0002_tombstone_select",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771283400000,
+      "tag": "0003_search_foods",
+      "breakpoints": true
     }
   ]
 }

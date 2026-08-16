@@ -22,30 +22,37 @@ export type {
 } from './database';
 export {
   DbQueryError,
+  isMissingRpcError,
   isUnauthorizedError,
   isUniqueViolation,
   clampUpdatedAt,
   clampUpdatedAtIso,
   getFood,
   getFoodBySource,
+  getFoodsByBarcode,
+  getFoodsByIds,
+  getFoodLogCounts,
   getProfile,
   incomingWins,
   insertCanonicalFood,
   insertFoodEntry,
   insertServings,
   insertUserFood,
+  listFoodAliases,
   listFoodsBySource,
   insertWeightLog,
   insertWorkout,
   listAgentRuns,
   listFoodEntriesByLogicalDate,
   listServings,
+  listServingsByFoodIds,
   listVisibleFoods,
   listWeightLogsByLogicalDate,
   listWorkoutSets,
   listWorkoutsByLogicalDate,
   markAgentRunScrubbed,
   omitServerCursor,
+  searchFoods,
   tombstoneFoodEntry,
   tombstoneUserFood,
   tombstoneWeightLog,
@@ -54,6 +61,7 @@ export {
   updateProfile,
   upsertFoodEntry,
 } from './queries';
+export type { FoodSearchHit } from './queries';
 export { upsertPhCoreFoods } from './ph-core';
 export type { PhCoreFoodRow } from './ph-core';
 export type { DbClient, FoodEntryWrite, UpsertResult } from './queries';

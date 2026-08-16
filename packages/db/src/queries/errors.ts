@@ -35,3 +35,18 @@ export function isUniqueViolation(error: unknown): boolean {
   }
   return false;
 }
+
+function errorFields(error: unknown): { code?: string; message?: string } {
+  if (error instanceof DbQueryError) return { code: error.code, message: error.message };
+  if (typeof error === 'object' && error !== null) {
+    const row = error as { code?: string; message?: string };
+    return { code: row.code, message: row.message };
+  }
+  return {};
+}
+
+export function isMissingRpcError(error: unknown): boolean {
+  const { code, message } = errorFields(error);
+  if (code === 'PGRST202' || code === 'PGRST203' || code === '42883') return true;
+  return /could not find the function/i.test(message ?? '');
+}
