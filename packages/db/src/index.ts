@@ -20,6 +20,7 @@ export type {
 } from './database';
 export {
   DbQueryError,
+  isUnauthorizedError,
   clampUpdatedAt,
   clampUpdatedAtIso,
   getFood,

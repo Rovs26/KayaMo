@@ -1,5 +1,6 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { NumberDisplay } from '@kayamo/ui';
+import { TodayLog } from './today-log';
 
 export default async function AppHome() {
   const supabase = await createServerSupabase();
@@ -15,10 +16,8 @@ export default async function AppHome() {
       <div className="mt-8 border-y border-line py-4">
         <p className="font-data text-caption uppercase tracking-[0.14em] text-muted">remain</p>
         <NumberDisplay value="—" unit="kcal" size="lg" />
-        <p className="mt-2 max-w-[32ch] font-body text-muted">
-          Logging lands in later chapters. You are past the gate.
-        </p>
       </div>
+      {user ? <TodayLog userId={user.id} /> : null}
     </main>
   );
 }

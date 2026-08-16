@@ -1,5 +1,5 @@
 export type { DbClient } from './client';
-export { DbQueryError } from './errors';
+export { DbQueryError, isUnauthorizedError } from './errors';
 export {
   clampUpdatedAt,
   clampUpdatedAtIso,
