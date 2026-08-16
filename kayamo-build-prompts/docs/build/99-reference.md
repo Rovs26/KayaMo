@@ -1,6 +1,8 @@
 # Reference
 
-Schedule, rules starter content, prompt patterns, the recovery playbook, costs, monorepo layout, and the claims this guide deliberately does not make.
+Not a coding chapter — no Done when, no `ch99:` commit. Schedule, the six
+Cursor rules (full starters), prompt patterns, the recovery playbook, costs,
+monorepo layout, and the claims this guide deliberately does not make.
 
 ---
 
@@ -23,41 +25,199 @@ Schedule, rules starter content, prompt patterns, the recovery playbook, costs, 
 
 # Appendix B — Rules file starter content
 
+`kayamo-scaffold.sh` writes all six. Do not rewrite them mid-build. Each
+`description` is a search query — Grok 4.6 retrieves rules by description, so
+"Nutrition domain rules: resolver cascade order, PH food data, portions,
+Taglish aliases" beats "Nutrition rules."
+
 `.cursor/rules/000-project.mdc` — `alwaysApply: true`
 
 ```markdown
 ---
 name: project-constitution
-description: KayaMo core rules — stack, hard constraints, and conventions. Applies to all work in this repo.
+description: KayaMo core rules — monorepo layout, hard constraints, naming, and conventions. Applies to all work in this repo.
 alwaysApply: true
 ---
 
-KayaMo is a Filipino-first calorie and gym tracker. PWA first, Capacitor
-wrap for Android/iOS. Solo developer. Users are in the Philippines.
+KayaMo is a Filipino-first calorie and gym tracker. PWA first, Capacitor wrap
+for Android/iOS. Solo developer. Users are in the Philippines.
+Bundle ID `ph.kayamo.app`. AI companion is named Coco.
 
-NON-NEGOTIABLE:
+## Monorepo layout — put code in the right place
+- `apps/pwa`    — user-facing Next.js app. Routes, screens, thin glue only.
+- `apps/admin`  — internal tools, auth-gated, never public.
+- `apps/mobile` — Capacitor shell. Native code only, zero business logic.
+- `packages/db` `core` `food` `ai` `offline` `ui` — all shared logic.
+
+Packages never import from apps. Apps never duplicate package logic.
+If a formula or a resolver appears inside `apps/`, that is a bug.
+
+## Non-negotiable
 - Never call an LLM without a Zod schema on the output.
 - Never write nutrition data without `source` and `confidence`.
 - The LLM extracts text and quantities. Nutrition numbers come from the
-  resolver cascade, never from the model.
+  resolver cascade in @kayamo/food, never from the model.
 - Every AI-created entry is editable by the user.
-- Offline first: writes go to IndexedDB, then sync.
+- Offline first: writes go to IndexedDB via @kayamo/offline, then sync.
 - Store UTC, render in the user's timezone. Respect their custom day
-  boundary (night shift), never assume midnight.
+  boundary (night shift) — never assume midnight.
 - All money in PHP.
-- Calorie floors (1200F/1500M) are enforced in code, not prompts.
-- Banned vocabulary anywhere in prompts or UI: cheat, guilty, earned,
+- Calorie floors (1200F / 1500M) are enforced in code, not prompts.
+- Banned vocabulary anywhere in prompts or UI copy: cheat, guilty, earned,
   burn it off, bad food, sinful.
 - Health data never appears in logs or error reports.
+- Never modify a test to make it pass. Fix the code, or tell me the test
+  is wrong and why.
 
-CONVENTIONS:
-- pnpm. TypeScript strict. No `any`.
-- Server-only Supabase client never imported into a "use client" file.
-- All LLM calls route through packages/ai/src/router.ts.
+## Conventions
+- pnpm workspaces + turbo. TypeScript strict. No `any`.
+- The service-role Supabase client is never imported into a "use client" file.
+- All LLM calls route through @kayamo/ai `router.ts`.
 - One chapter per commit, prefixed `chNN:`.
 ```
 
-Write the other five the same way, each with a `description` that reads like a search query — Grok 4.6 retrieves rules by description, so "Nutrition domain rules: resolver cascade order, PH food data, portions, Taglish aliases" beats "Nutrition rules."
+`.cursor/rules/100-stack.mdc`
+
+```markdown
+---
+name: stack-and-tooling
+description: KayaMo tech stack, build commands, dependency rules, Next.js and Supabase conventions, turbo and pnpm workspace usage.
+---
+
+Next.js 15 App Router · TypeScript strict · Tailwind v4 · Supabase
+(Postgres, Auth, Storage, Edge Functions) · Drizzle ORM · Dexie ·
+Vercel AI SDK · Zod · Vitest · Playwright · Capacitor · pnpm + turbo.
+
+Do not substitute a library without asking.
+
+Commands: `pnpm dev:pwa`, `pnpm dev:admin`, `pnpm build`, `pnpm test`,
+`pnpm typecheck`, `pnpm db:migrate`, `pnpm ph-core:build`.
+
+- Server Components by default; "use client" only where interaction requires it.
+- Route handlers validate input with Zod at the boundary.
+- Migrations are generated, reviewed, and committed — never applied ad hoc.
+- Add a dependency to the package that uses it, not to the root.
+```
+
+`.cursor/rules/200-data-model.mdc`
+
+```markdown
+---
+name: data-model-and-rls
+description: KayaMo database schema rules — tables, denormalization, row-level security, offline sync keys, and migration conventions.
+---
+
+- RLS on every table. Users read only their own rows. Exception: `foods` and
+  `servings` where source != 'user' are globally readable.
+- `food_entries` stores a DENORMALIZED nutrient snapshot. Never replace it
+  with a join. Correcting a food in 2027 must not silently rewrite 2026 history.
+- Every user-owned row uses a client-generated UUID primary key plus
+  `updated_at`, so offline sync can do last-write-wins.
+- Targets and expenditure estimates are versioned rows (`effective_from`),
+  never updated in place.
+- User-created foods are private by default, with an explicit opt-in to share.
+- Every table carries created_at / updated_at.
+```
+
+`.cursor/rules/300-ai-agents.mdc`
+
+```markdown
+---
+name: ai-agents-and-coco
+description: KayaMo AI rules — Coco's persona, agent architecture, tool design, model tier routing, memory, cost control, and numeric grounding.
+---
+
+## Coco
+KayaMo's companion (the sibling of KitaMo's Lis). A training partner, not a
+nutritionist and not a hype account. Speaks Taglish naturally, matching the
+user's register. Never moralizes about food. Never says "guilty", "cheat meal",
+"earned it", or "burn it off". Reports numbers plainly and asks before advising.
+Defined once in @kayamo/ai `persona.ts`.
+
+## Architecture
+ONE tool-using agent plus scheduled and event-triggered runs. No supervisor
+hierarchy, no agent-to-agent delegation, unless explicitly requested.
+
+- The structured DB is the source of truth. Every number Coco states must come
+  from a tool result — enforce with the numeric-grounding check, and reject
+  any output containing an unreferenced figure.
+- Coco proposes; the user disposes. Write actions require UI confirmation.
+- Long-term profile is updated by an explicit tool, never by silent inference.
+
+## Model routing
+Every call goes through `router.ts`. Tiers: NANO (classification), SMALL
+(extraction, OCR), VISION (photo), COACH (weekly narrative only). Check the
+embedding cache before any model call. Enforce the per-user daily budget.
+Log model, tokens, latency, and cost_usd to `agent_runs` on every call.
+```
+
+`.cursor/rules/400-nutrition-domain.mdc`
+
+```markdown
+---
+name: nutrition-domain
+description: KayaMo nutrition and food data rules — resolver cascade order, Philippine food data sourcing, portions, Taglish aliases, licensing constraints.
+---
+
+## Resolver cascade (@kayamo/food `resolve.ts`) — order is fixed
+1. My Foods (user's own confirmed foods)
+2. PH core (`source='ph_core'`, matched on name AND name_tl aliases)
+3. Local cache
+4. Open Food Facts — jumps to FIRST when a barcode is present
+5. USDA FoodData Central
+6. LLM estimate — last resort, confidence capped at 0.5, always UI-flagged
+
+Never collapse the cascade into a single LLM call.
+Always return a ranked candidate list, never a bare answer.
+
+## Licensing — hard constraints
+- Do NOT scrape FNRI PhilFCT or any FNRI endpoint. No open licence exists.
+  PH core values come from ingredient decomposition of CC0 USDA data, with
+  the assumption recorded in `source_note`.
+- Open Food Facts is ODbL: store the attribution with every imported record
+  and surface it in the About screen. Send a proper User-Agent.
+- USDA FoodData Central is CC0 — free to use.
+
+## Portions
+PH-native units come first in every picker: tasa, piraso, order, hiwa,
+kutsara, bowl. Grams are the fallback, not the default.
+Vague sizes (malaki / sakto / maliit) map to portion multipliers, never ignored.
+```
+
+`.cursor/rules/500-safety-privacy.mdc`
+
+```markdown
+---
+name: safety-and-privacy
+description: KayaMo safety guardrails and Philippine data privacy rules — calorie floors, disordered eating red flags, banned copy, RA 10173 compliance, health data handling.
+---
+
+## Safety — enforced in code, not prompts
+- Calorie floors 1200 (female) / 1500 (male). No override, no advanced mode.
+- Max weekly loss target 1% bodyweight. Max deficit 25% below TDEE.
+- Clamp any request that breaches a floor and surface `clamped: true` honestly.
+- Red-flag detection on input: extreme restriction, purging, appetite
+  suppression, "how little can I eat", BMI-below-17.5 goals, body-image
+  distress. When flagged: do not provide the plan, respond warmly and briefly,
+  surface PH support resources from the config file, do not lecture, do not
+  end the conversation.
+- Never comment on appearance. Never use guilt framing.
+- If a medical condition is mentioned (diabetes, PCOS, kidney, pregnancy,
+  ED history), defer to their clinician and do not generate a plan.
+- KayaMo is not a medical device. No diagnosis, treatment, or prescription.
+
+## Privacy — RA 10173 (Data Privacy Act of 2012)
+Health data is SENSITIVE personal information — the highest-risk category.
+- Granular, versioned, opt-in consent per purpose. Nothing pre-ticked.
+- Photos deleted from storage after analysis unless the user saves them.
+- Calendar event titles are never sent to a model. Only derived time blocks.
+- No health data in application logs, analytics, or error reports.
+  Analytics track EVENTS, never content.
+- Export and hard-delete must both work in-app.
+- Breach notification to the NPC within 72 hours (see docs/breach-response.md).
+- NPC registration is triggered at 1,000 users processing sensitive personal
+  information — see docs/compliance.md.
+```
 
 ---
 
