@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@kayamo/core": "workspace:*",
     "@kayamo/db": "workspace:*",
     "dexie": "^4"
   },

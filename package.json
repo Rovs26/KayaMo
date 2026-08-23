@@ -16,6 +16,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "ph-core:build": "tsx scripts/build-ph-core.ts",
     "ph-core:check": "tsx scripts/build-ph-core.ts --check",
+    "simulate:tdee": "tsx scripts/simulate-tdee.ts",
     "mobile:sync": "pnpm --filter @kayamo/mobile sync",
     "format": "prettier --write ."
   },

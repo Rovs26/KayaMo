@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
@@ -18,9 +18,12 @@
     "@kayamo/food": "workspace:*",
     "@kayamo/offline": "workspace:*",
     "@kayamo/ui": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
+    "@zxing/browser": "^0.2.1",
     "next": "16.3.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4"
   },
   "devDependencies": {
     "@kayamo/config": "workspace:*",
