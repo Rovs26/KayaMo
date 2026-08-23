@@ -9,7 +9,6 @@ import {
   type UserFoodDraft,
 } from '@kayamo/food/label-ocr';
 import { Button } from '@kayamo/ui';
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 const LABELS: Record<NutrientKey, string> = {
@@ -40,8 +39,13 @@ function parseNum(value: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export function AddProductForm({ barcode: initialBarcode }: { barcode: string }) {
-  const router = useRouter();
+export function AddProductForm({
+  barcode: initialBarcode,
+  onSaved,
+}: {
+  barcode: string;
+  onSaved: () => void;
+}) {
   const [barcode, setBarcode] = useState(initialBarcode);
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -172,8 +176,7 @@ export function AddProductForm({ barcode: initialBarcode }: { barcode: string })
         return;
       }
       await cacheFoodWithServings(json.food, json.servings);
-      router.push('/app');
-      router.refresh();
+      onSaved();
     } catch {
       setError('Could not save that food. Try again.');
     } finally {

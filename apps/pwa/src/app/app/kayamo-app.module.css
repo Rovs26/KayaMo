@@ -2057,7 +2057,8 @@
   margin-top: 12px;
 }
 
-.healthPrimaryActions a {
+.healthPrimaryActions a,
+.healthPrimaryActions button {
   display: flex;
   min-height: 48px;
   align-items: center;
@@ -2065,16 +2066,63 @@
   gap: 8px;
   border: 1px solid var(--km-hairline);
   border-radius: 14px;
+  background: transparent;
   color: var(--km-text);
   text-decoration: none;
+  cursor: pointer;
 }
 
-.healthPrimaryActions a:first-child {
+.healthPrimaryActions a:first-child,
+.healthPrimaryActions button:first-child {
   border-color: var(--km-action);
   background: var(--km-action);
   color: var(--km-action-fg);
   font-size: 16px;
   font-weight: 650;
+}
+
+.detailHeader {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.detailBack {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 0;
+  border: 0;
+  background: none;
+  color: var(--km-muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.detailTitle {
+  margin: 2px 0 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.detailSubtitle {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--km-muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/*
+ * The food screens still carry the Tailwind token layer from before the shell
+ * existed. Both palettes track the same theme attribute, so they agree on
+ * colour; this only restores the spacing the standalone route used to add.
+ */
+.detailBody {
+  display: grid;
+  gap: 1rem;
 }
 
 .weightCard {

@@ -18,7 +18,6 @@ import {
   tombstoneLocalFoodEntries,
 } from '@kayamo/offline';
 import { Button, EmptyState, Toast } from '@kayamo/ui';
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   barcodeEngine,
@@ -115,7 +114,13 @@ async function openCameraStream(): Promise<MediaStream> {
   throw last instanceof Error ? last : new DOMException('Could not start camera', 'NotReadableError');
 }
 
-export function BarcodeLookup({ userId }: { userId: string }) {
+export function BarcodeLookup({
+  userId,
+  onAddProduct,
+}: {
+  userId: string;
+  onAddProduct: (barcode: string) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const zxingRef = useRef<ZxingControls | null>(null);
@@ -471,11 +476,9 @@ export function BarcodeLookup({ userId }: { userId: string }) {
           title="Add this product"
           body="This barcode is not in Open Food Facts yet. Photograph the nutrition facts panel and save it to My Foods."
           action={
-            <Link href={`/app/foods/add?barcode=${encodeURIComponent(code ?? '')}`}>
-              <Button type="button" size="lg">
-                Add this product
-              </Button>
-            </Link>
+            <Button type="button" size="lg" onClick={() => onAddProduct(code ?? '')}>
+              Add this product
+            </Button>
           }
         />
       ) : null}

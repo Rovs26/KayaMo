@@ -33,7 +33,6 @@ import {
   useLiveFoodHistory,
 } from '@kayamo/offline';
 import { Button, EmptyState, NumberDisplay, Toast } from '@kayamo/ui';
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   QuantitySheet,
@@ -155,19 +154,21 @@ function historyToTarget(entry: SearchHistoryEntry): QuantityTarget {
   };
 }
 
-function EmptyActions() {
+function EmptyActions({
+  onAddProduct,
+  onDescribeInChat,
+}: {
+  onAddProduct: () => void;
+  onDescribeInChat: () => void;
+}) {
   return (
     <div className="flex flex-col gap-3">
-      <Link href="/app/foods/add">
-        <Button type="button" size="lg">
-          Add it yourself
-        </Button>
-      </Link>
-      <Link href="/app/chat">
-        <Button type="button" variant="secondary" size="lg">
-          Describe it in chat
-        </Button>
-      </Link>
+      <Button type="button" size="lg" onClick={onAddProduct}>
+        Add it yourself
+      </Button>
+      <Button type="button" variant="secondary" size="lg" onClick={onDescribeInChat}>
+        Describe it in chat
+      </Button>
     </div>
   );
 }
@@ -225,7 +226,15 @@ function ResultRow({
   );
 }
 
-export function FoodSearch({ userId }: { userId: string }) {
+export function FoodSearch({
+  userId,
+  onAddProduct,
+  onDescribeInChat,
+}: {
+  userId: string;
+  onAddProduct: () => void;
+  onDescribeInChat: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('recent');
   const [timeZone, setTimeZone] = useState('Asia/Manila');
@@ -516,7 +525,7 @@ export function FoodSearch({ userId }: { userId: string }) {
             <EmptyState
               title="Nothing matched"
               body="Add it to My Foods, or describe it in chat."
-              action={<EmptyActions />}
+              action={<EmptyActions onAddProduct={onAddProduct} onDescribeInChat={onDescribeInChat} />}
             />
           ) : null}
         </div>
@@ -568,7 +577,7 @@ export function FoodSearch({ userId }: { userId: string }) {
             <EmptyState
               title={tab === 'recent' ? 'No recent foods' : 'No frequent foods'}
               body="Search above, add a product, or describe it in chat."
-              action={<EmptyActions />}
+              action={<EmptyActions onAddProduct={onAddProduct} onDescribeInChat={onDescribeInChat} />}
             />
           )}
         </div>

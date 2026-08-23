@@ -105,10 +105,45 @@ import {
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { SignOutButton } from './sign-out-button';
 import { SyncStatusBar } from './sync-status-bar';
+import { AddProductForm } from './foods/add/add-product-form';
+import { BarcodeLookup } from './foods/barcode/barcode-lookup';
+import { FoodSearch } from './foods/search/food-search';
 import styles from './kayamo-app.module.css';
 
 type Tab = 'home' | 'today' | 'health' | 'journey';
 type Theme = 'system' | 'day' | 'night';
+
+/**
+ * Screens pushed on top of a tab rather than routed to. Keeping them in the
+ * shell preserves the tab bar, the theme, and the loaded day state, none of
+ * which survive a route change.
+ */
+type DetailScreen =
+  | { kind: 'food-search' }
+  | { kind: 'food-add'; barcode: string }
+  | { kind: 'food-barcode' };
+
+const DETAIL_META: Record<
+  DetailScreen['kind'],
+  { eyebrow: string; title: string; subtitle: string }
+> = {
+  'food-search': {
+    eyebrow: 'Search',
+    title: 'Find a food',
+    subtitle: 'Local matches show first. Packaged and USDA results stream in below.',
+  },
+  'food-add': {
+    eyebrow: 'My Foods',
+    title: 'Add this product',
+    subtitle:
+      'Photograph the nutrition facts panel. Confirm the numbers before they save to My Foods.',
+  },
+  'food-barcode': {
+    eyebrow: 'Barcode',
+    title: 'Scan a pack',
+    subtitle: 'Point the camera at the bars. If it is not in Open Food Facts yet, add it from the label.',
+  },
+};
 
 const TABS: Array<{ id: Tab; label: string; Icon: typeof House }> = [
   { id: 'home', label: 'Home', Icon: House },
@@ -215,6 +250,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [tab, setTab] = useState<Tab>('home');
   const mainRef = useRef<HTMLElement>(null);
   const tabScrollPositions = useRef<Record<Tab, number>>({ home: 0, today: 0, health: 0, journey: 0 });
+  const [detailStack, setDetailStack] = useState<DetailScreen[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
@@ -346,6 +382,16 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     const timer = window.setTimeout(() => setNotice(null), 4200);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      const state = event.state as { kayamoDepth?: number } | null;
+      const depth = typeof state?.kayamoDepth === 'number' ? state.kayamoDepth : 0;
+      setDetailStack((stack) => (stack.length > depth ? stack.slice(0, depth) : stack));
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const unfinishedTask = tasks.find((task) => !task.completed_at);
   const unfinishedRoutine = routines.find((routine) => !completedRoutineIds.has(routine.id));
@@ -537,13 +583,32 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     }
   }
 
+  const detail = detailStack.length ? detailStack[detailStack.length - 1] : null;
+
   function selectTab(nextTab: Tab) {
+    // Leaving a pushed screen via the tab bar unwinds the history entries it
+    // added, so a later back gesture does not walk back into it.
+    if (detailStack.length) window.history.go(-detailStack.length);
     if (nextTab === tab) return;
     if (mainRef.current) tabScrollPositions.current[tab] = mainRef.current.scrollTop;
     setTab(nextTab);
     window.requestAnimationFrame(() => {
       if (mainRef.current) mainRef.current.scrollTop = tabScrollPositions.current[nextTab];
     });
+  }
+
+  function pushDetail(next: DetailScreen) {
+    // One history entry per pushed screen is what makes the Android system
+    // back button and the browser back gesture pop a screen rather than leave
+    // the app. Depth is carried in the entry so popstate can resync exactly,
+    // including a multi-step go(-n).
+    window.history.pushState({ kayamoDepth: detailStack.length + 1 }, '');
+    setDetailStack((stack) => [...stack, next]);
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }
+
+  function closeDetail() {
+    window.history.back();
   }
 
   if (focusView && activeFocus) {
@@ -585,7 +650,20 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
 
         <main ref={mainRef} className={styles.main} id="main-content">
           <h1 className={styles.srOnly}>Today with Coco</h1>
-          {tab === 'home' ? (
+          {detail ? (
+            <DetailView
+              detail={detail}
+              userId={userId}
+              onBack={closeDetail}
+              onAddProduct={(barcode) => pushDetail({ kind: 'food-add', barcode })}
+              onDescribeInChat={() => setChatOpen(true)}
+              onSaved={() => {
+                setNotice('Saved to My Foods.');
+                closeDetail();
+              }}
+            />
+          ) : null}
+          {!detail && tab === 'home' ? (
             <HomeScreen
               date={date}
               recommended={recommended}
@@ -603,7 +681,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               }}
             />
           ) : null}
-          {tab === 'today' ? (
+          {!detail && tab === 'today' ? (
             <TodayScreen
               date={date}
               tasks={tasks}
@@ -622,7 +700,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               onChat={() => setChatOpen(true)}
             />
           ) : null}
-          {tab === 'health' ? (
+          {!detail && tab === 'health' ? (
             <HealthScreen
               entries={foodEntries}
               kcalProgress={kcalProgress}
@@ -641,10 +719,12 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               onOpenTargets={() => setTargetsOpen(true)}
               onOpenTrend={() => setTrendOpen(true)}
               onOpenExpenditure={() => setExpenditureOpen(true)}
+              onLogFood={() => pushDetail({ kind: 'food-search' })}
+              onScanBarcode={() => pushDetail({ kind: 'food-barcode' })}
               onChat={() => setChatOpen(true)}
             />
           ) : null}
-          {tab === 'journey' ? (
+          {!detail && tab === 'journey' ? (
             <JourneyScreen
               goals={goals}
               tasks={tasks}
@@ -789,6 +869,53 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       />
 
       <CocoChat open={chatOpen} onClose={() => setChatOpen(false)} userId={userId} logicalDate={logicalDate} recommended={recommended} />
+    </div>
+  );
+}
+
+function DetailView({
+  detail,
+  userId,
+  onBack,
+  onAddProduct,
+  onDescribeInChat,
+  onSaved,
+}: {
+  detail: DetailScreen;
+  userId: string;
+  onBack: () => void;
+  onAddProduct: (barcode: string) => void;
+  onDescribeInChat: () => void;
+  onSaved: () => void;
+}) {
+  const meta = DETAIL_META[detail.kind];
+  return (
+    <div className={`${styles.screen} ${styles.listScreen}`}>
+      <div className={styles.detailHeader}>
+        <button type="button" onClick={onBack} className={styles.detailBack}>
+          <ArrowLeft size={18} weight="bold" /> Back
+        </button>
+        <div>
+          <p className={styles.eyebrow}>{meta.eyebrow}</p>
+          <h2 className={styles.detailTitle}>{meta.title}</h2>
+        </div>
+        <p className={styles.detailSubtitle}>{meta.subtitle}</p>
+      </div>
+      <div className={styles.detailBody}>
+        {detail.kind === 'food-search' ? (
+          <FoodSearch
+            userId={userId}
+            onAddProduct={() => onAddProduct('')}
+            onDescribeInChat={onDescribeInChat}
+          />
+        ) : null}
+        {detail.kind === 'food-barcode' ? (
+          <BarcodeLookup userId={userId} onAddProduct={onAddProduct} />
+        ) : null}
+        {detail.kind === 'food-add' ? (
+          <AddProductForm barcode={detail.barcode} onSaved={onSaved} />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1001,6 +1128,8 @@ function HealthScreen({
   onOpenTargets,
   onOpenTrend,
   onOpenExpenditure,
+  onLogFood,
+  onScanBarcode,
   onChat,
 }: {
   entries: ReturnType<typeof useLiveFoodEntries>;
@@ -1020,6 +1149,8 @@ function HealthScreen({
   onOpenTargets: () => void;
   onOpenTrend: () => void;
   onOpenExpenditure: () => void;
+  onLogFood: () => void;
+  onScanBarcode: () => void;
   onChat: () => void;
 }) {
   const orderedWeights = [...weights]
@@ -1130,8 +1261,12 @@ function HealthScreen({
           ))
         )}
         <div className={styles.healthPrimaryActions}>
-          <Link href="/app/foods/search"><MagnifyingGlass size={18} weight="bold" /> Log food</Link>
-          <Link href="/app/foods/barcode" aria-label="Scan barcode"><Barcode size={21} /></Link>
+          <button type="button" onClick={onLogFood}>
+            <MagnifyingGlass size={18} weight="bold" /> Log food
+          </button>
+          <button type="button" onClick={onScanBarcode} aria-label="Scan barcode">
+            <Barcode size={21} />
+          </button>
         </div>
       </section>
 
