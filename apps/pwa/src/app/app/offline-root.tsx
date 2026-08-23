@@ -3,6 +3,7 @@
 import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { startSync } from '@kayamo/offline';
 import { type ReactNode, useEffect } from 'react';
+import { PwaRuntime } from './pwa-runtime';
 
 export function OfflineRoot({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -10,5 +11,5 @@ export function OfflineRoot({ children }: { children: ReactNode }) {
     return startSync({ getClient: () => client });
   }, []);
 
-  return children;
+  return <PwaRuntime>{children}</PwaRuntime>;
 }

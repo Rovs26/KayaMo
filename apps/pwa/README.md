@@ -1,6 +1,6 @@
 # @kayamo/pwa — the user-facing app
 
-Next.js 15 App Router. This is the product. Ships as an installable PWA and
+Next.js 16 App Router. This is the product. Ships as an installable PWA and
 is the exact bundle `apps/mobile` wraps.
 
 **Scaffold with (Chapter 1):**

@@ -1,16 +1,16 @@
 /* Semantic token layer. Names describe role, not hue. */
 
 @theme {
-  --color-bg: #2a1b3d;
-  --color-surface: #3a2a50;
-  --color-surface-2: #46355e;
-  --color-accent: #c4e538;
-  --color-accent-fg: #2a1b3d;
-  --color-text: #f7f4ed;
-  --color-muted: #8b7ba8;
-  --color-warning: #e8734a;
-  --color-line: #8b7ba866;
-  --color-overlay: #140c24cc;
+  --color-bg: #f4f8ff;
+  --color-surface: #ffffff;
+  --color-surface-2: #eaf2ff;
+  --color-accent: #1463ff;
+  --color-accent-fg: #ffffff;
+  --color-text: #10233f;
+  --color-muted: #5f6f82;
+  --color-warning: #c83e4d;
+  --color-line: #10233f1a;
+  --color-overlay: #10233f61;
 
   --font-body: var(--font-source-sans), 'Source Sans 3', ui-sans-serif, system-ui,
     sans-serif;
@@ -52,7 +52,7 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
     background: var(--color-bg);
   }
 
@@ -73,6 +73,20 @@
     background: var(--color-accent);
     color: var(--color-accent-fg);
   }
+}
+
+html[data-kayamo-theme='night'] {
+  color-scheme: dark;
+  --color-bg: #2a1b3d;
+  --color-surface: #3a2a50;
+  --color-surface-2: #46355e;
+  --color-accent: #c4e538;
+  --color-accent-fg: #2a1b3d;
+  --color-text: #f7f4ed;
+  --color-muted: #a99abd;
+  --color-warning: #e8734a;
+  --color-line: #f7f4ed24;
+  --color-overlay: #00000085;
 }
 
 @media (prefers-reduced-motion: reduce) {
