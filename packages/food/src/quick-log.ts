@@ -1,8 +1,20 @@
-import { isMealSlot, type MealSlot } from './meal-slot';
+import type { MealSlot } from './meal-slot';
 import type { NutrientSnapshot } from './numeric';
 
-export { mealSlotAtHour, mealSlotLabel, MEAL_SLOTS, shiftLogicalDate, isMealSlot } from './meal-slot';
-export type { MealSlot } from './meal-slot';
+export {
+  mealSlotAtHour,
+  mealSlotLabel,
+  MEAL_SLOTS,
+  LOCALES,
+  DEFAULT_LOCALE,
+  shiftLogicalDate,
+  isMealSlot,
+  isLocale,
+  asLocale,
+  asMealSlot,
+  orderedMealSlots,
+} from './meal-slot';
+export type { MealSlot, Locale } from './meal-slot';
 export { scaleNutrientSnapshot, rescaleNutrientSnapshot, type NutrientSnapshot } from './numeric';
 export { defaultServing, sortServingsPhFirst } from './portion';
 
@@ -119,8 +131,4 @@ export function entriesOnLogicalDate(
   return entries
     .filter((entry) => logicalDateOf(entry.loggedAtMs) === logicalDate)
     .sort((a, b) => a.loggedAtMs - b.loggedAtMs);
-}
-
-export function asMealSlot(value: string): MealSlot | null {
-  return isMealSlot(value) ? value : null;
 }

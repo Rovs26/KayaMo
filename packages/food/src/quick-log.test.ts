@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { mealSlotAtHour, mealSlotLabel, shiftLogicalDate } from './meal-slot';
+import {
+  asLocale,
+  mealSlotAtHour,
+  mealSlotLabel,
+  MEAL_SLOTS,
+  orderedMealSlots,
+  shiftLogicalDate,
+} from './meal-slot';
 import {
   entriesOnLogicalDate,
   lastMealSlotEntries,
@@ -43,6 +50,30 @@ describe('mealSlotAtHour', () => {
 
   it('labels slots in Filipino', () => {
     expect(mealSlotLabel('almusal')).toBe('Almusal');
+  });
+
+  it('keeps Filipino meal names for taglish and defaults to taglish', () => {
+    for (const slot of MEAL_SLOTS) {
+      expect(mealSlotLabel(slot, 'taglish')).toBe(mealSlotLabel(slot, 'fil'));
+      expect(mealSlotLabel(slot)).toBe(mealSlotLabel(slot, 'taglish'));
+    }
+  });
+
+  it('labels slots in English only for the en locale', () => {
+    expect(mealSlotLabel('almusal', 'en')).toBe('Breakfast');
+    expect(mealSlotLabel('tanghalian', 'en')).toBe('Lunch');
+    expect(mealSlotLabel('meryenda', 'en')).toBe('Snack');
+    expect(mealSlotLabel('hapunan', 'en')).toBe('Dinner');
+  });
+
+  it('falls back to taglish for an unknown profile locale', () => {
+    expect(asLocale('es')).toBe('taglish');
+    expect(asLocale(null)).toBe('taglish');
+    expect(asLocale('en')).toBe('en');
+  });
+
+  it('orders slots so snacks sit between lunch and dinner', () => {
+    expect(orderedMealSlots()).toEqual(['almusal', 'tanghalian', 'meryenda', 'hapunan']);
   });
 });
 
