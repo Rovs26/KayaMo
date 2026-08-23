@@ -1,11 +1,54 @@
-import type { DbClient, FoodEntryWrite, MealTemplateWrite, UpsertMealTemplateResult, UpsertResult } from '@kayamo/db';
+import type {
+  AgentMemoryWrite,
+  CocoConversationWrite,
+  CocoMessageWrite,
+  CompanionEventWrite,
+  DailyLoopPreferenceWrite,
+  DailyPlanWrite,
+  DbClient,
+  FoodEntryWrite,
+  FocusSessionWrite,
+  GoalMilestoneWrite,
+  GoalWrite,
+  HabitCompletionWrite,
+  HabitWrite,
+  MealTemplateWrite,
+  RoutineCompletionWrite,
+  RoutineWrite,
+  TaskWrite,
+  UserExerciseWrite,
+  UpsertMealTemplateResult,
+  UpsertResult,
+  WeightLogWrite,
+  WorkoutSetWrite,
+  WorkoutPlanExerciseWrite,
+  WorkoutPlanWrite,
+  WorkoutWrite,
+} from '@kayamo/db';
 import {
-  DbQueryError,
-  insertWeightLog,
-  insertWorkout,
   isUnauthorizedError,
+  upsertAgentMemory,
+  upsertCocoConversation,
+  upsertCocoMessage,
+  recordCompanionEvent,
+  upsertDailyLoopPreferences,
+  upsertDailyPlan,
   upsertFoodEntry,
+  upsertFocusSession,
+  upsertGoal,
+  upsertGoalMilestone,
+  upsertHabit,
+  upsertHabitCompletion,
   upsertMealTemplate,
+  upsertRoutine,
+  upsertRoutineCompletion,
+  upsertTask,
+  upsertUserExercise,
+  upsertWeightLog,
+  upsertWorkout,
+  upsertWorkoutSet,
+  upsertWorkoutPlan,
+  upsertWorkoutPlanExercise,
 } from '@kayamo/db';
 import { backoffMs } from './backoff';
 import { getOfflineDb, type SyncQueueItem, type SyncableTable } from './db';
@@ -125,21 +168,20 @@ function scheduleDrain(delayMs: number): void {
   }, delayMs);
 }
 
-async function insertIgnoringDuplicate(run: () => Promise<void>): Promise<void> {
-  try {
-    await run();
-  } catch (error) {
-    if (error instanceof DbQueryError && error.code === '23505') return;
-    throw error;
-  }
-}
-
 function errorCode(error: unknown): string {
-  if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string') {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
     return error.code;
   }
   if (error instanceof Error) {
-    if (error.message.toLowerCase().includes('failed to fetch') || error.name === 'TypeError') {
+    if (
+      error.message.toLowerCase().includes('failed to fetch') ||
+      error.name === 'TypeError'
+    ) {
       return 'network';
     }
     return 'error';
@@ -150,29 +192,101 @@ function errorCode(error: unknown): string {
 async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
   switch (item.table) {
     case 'food_entries': {
-      const result: UpsertResult = await upsertFoodEntry(client, item.payload as FoodEntryWrite);
-      if (result.applied) {
+      const result: UpsertResult = await upsertFoodEntry(
+        client,
+        item.payload as FoodEntryWrite,
+      );
+      if (result.row) {
         await getOfflineDb().food_entries.put(result.row);
       }
       return;
     }
+    case 'daily_plans': {
+      const result = await upsertDailyPlan(client, item.payload as DailyPlanWrite);
+      if (result.row) await getOfflineDb().daily_plans.put(result.row);
+      return;
+    }
+    case 'focus_sessions': {
+      const result = await upsertFocusSession(client, item.payload as FocusSessionWrite);
+      if (result.row) await getOfflineDb().focus_sessions.put(result.row);
+      return;
+    }
+    case 'daily_loop_preferences': {
+      const result = await upsertDailyLoopPreferences(
+        client,
+        item.payload as DailyLoopPreferenceWrite,
+      );
+      if (result.row) await getOfflineDb().daily_loop_preferences.put(result.row);
+      return;
+    }
     case 'weight_logs': {
-      await insertIgnoringDuplicate(async () => {
-        await insertWeightLog(client, item.payload as Parameters<typeof insertWeightLog>[1]);
-      });
+      const result = await upsertWeightLog(client, item.payload as WeightLogWrite);
+      if (result.row) await getOfflineDb().weight_logs.put(result.row);
       return;
     }
     case 'workouts': {
-      await insertIgnoringDuplicate(async () => {
-        await insertWorkout(client, item.payload as Parameters<typeof insertWorkout>[1]);
-      });
+      const result = await upsertWorkout(client, item.payload as WorkoutWrite);
+      if (result.row) await getOfflineDb().workouts.put(result.row);
       return;
     }
     case 'workout_sets': {
-      const { error } = await client
-        .from('workout_sets')
-        .upsert(item.payload as never, { onConflict: 'id' });
-      if (error) throw error;
+      const result = await upsertWorkoutSet(client, item.payload as WorkoutSetWrite);
+      if (result.row) await getOfflineDb().workout_sets.put(result.row);
+      return;
+    }
+    case 'exercises': {
+      const result = await upsertUserExercise(client, item.payload as UserExerciseWrite);
+      if (result.row) await getOfflineDb().exercises.put(result.row);
+      return;
+    }
+    case 'workout_plans': {
+      const result = await upsertWorkoutPlan(client, item.payload as WorkoutPlanWrite);
+      if (result.row) await getOfflineDb().workout_plans.put(result.row);
+      return;
+    }
+    case 'workout_plan_exercises': {
+      const result = await upsertWorkoutPlanExercise(
+        client,
+        item.payload as WorkoutPlanExerciseWrite,
+      );
+      if (result.row) await getOfflineDb().workout_plan_exercises.put(result.row);
+      return;
+    }
+    case 'goals': {
+      const result = await upsertGoal(client, item.payload as GoalWrite);
+      if (result.row) await getOfflineDb().goals.put(result.row);
+      return;
+    }
+    case 'goal_milestones': {
+      const result = await upsertGoalMilestone(
+        client,
+        item.payload as GoalMilestoneWrite,
+      );
+      if (result.row) await getOfflineDb().goal_milestones.put(result.row);
+      return;
+    }
+    case 'habits': {
+      const result = await upsertHabit(client, item.payload as HabitWrite);
+      if (result.row) await getOfflineDb().habits.put(result.row);
+      return;
+    }
+    case 'habit_completions': {
+      const result = await upsertHabitCompletion(
+        client,
+        item.payload as HabitCompletionWrite,
+      );
+      if (result.row) await getOfflineDb().habit_completions.put(result.row);
+      return;
+    }
+    case 'companion_events': {
+      const result = await recordCompanionEvent(
+        client,
+        item.payload as CompanionEventWrite,
+      );
+      if (result.row.id !== item.entityId) {
+        await getOfflineDb().companion_events.delete(item.entityId);
+      }
+      await getOfflineDb().companion_events.put(result.row);
       return;
     }
     case 'meal_templates': {
@@ -180,9 +294,46 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as MealTemplateWrite,
       );
-      if (result.applied) {
+      if (result.row) {
         await getOfflineDb().meal_templates.put(result.row);
       }
+      return;
+    }
+    case 'tasks': {
+      const result = await upsertTask(client, item.payload as TaskWrite);
+      if (result.row) await getOfflineDb().tasks.put(result.row);
+      return;
+    }
+    case 'routines': {
+      const result = await upsertRoutine(client, item.payload as RoutineWrite);
+      if (result.row) await getOfflineDb().routines.put(result.row);
+      return;
+    }
+    case 'routine_completions': {
+      const result = await upsertRoutineCompletion(
+        client,
+        item.payload as RoutineCompletionWrite,
+      );
+      if (result.row) await getOfflineDb().routine_completions.put(result.row);
+      return;
+    }
+    case 'agent_memory': {
+      const result = await upsertAgentMemory(client, item.payload as AgentMemoryWrite);
+      if (result.row) await getOfflineDb().agent_memory.put(result.row);
+      return;
+    }
+    case 'coco_conversations': {
+      const result = await upsertCocoConversation(
+        client,
+        item.payload as CocoConversationWrite,
+      );
+      if (result.row) await getOfflineDb().coco_conversations.put(result.row);
+      return;
+    }
+    case 'coco_messages': {
+      const result = await upsertCocoMessage(client, item.payload as CocoMessageWrite);
+      if (result.row) await getOfflineDb().coco_messages.put(result.row);
+      return;
     }
   }
 }
@@ -247,9 +398,26 @@ export function bindStatusStore(onChange: () => void): () => void {
 export function isSyncableTable(value: string): value is SyncableTable {
   return (
     value === 'food_entries' ||
+    value === 'daily_plans' ||
+    value === 'focus_sessions' ||
+    value === 'daily_loop_preferences' ||
     value === 'weight_logs' ||
     value === 'workouts' ||
     value === 'workout_sets' ||
-    value === 'meal_templates'
+    value === 'exercises' ||
+    value === 'workout_plans' ||
+    value === 'workout_plan_exercises' ||
+    value === 'goals' ||
+    value === 'goal_milestones' ||
+    value === 'habits' ||
+    value === 'habit_completions' ||
+    value === 'companion_events' ||
+    value === 'meal_templates' ||
+    value === 'tasks' ||
+    value === 'routines' ||
+    value === 'routine_completions' ||
+    value === 'agent_memory' ||
+    value === 'coco_conversations' ||
+    value === 'coco_messages'
   );
 }

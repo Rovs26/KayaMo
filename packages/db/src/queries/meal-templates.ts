@@ -41,7 +41,21 @@ export type MealTemplateWrite = z.infer<typeof mealTemplateWriteSchema>;
 
 export type UpsertMealTemplateResult =
   | { applied: true; reason: 'inserted' | 'updated'; row: MealTemplate }
-  | { applied: false; reason: 'stale_or_tombstoned' };
+  | { applied: false; reason: 'stale_or_tombstoned'; row: MealTemplate | null };
+
+async function getMealTemplateForSync(
+  client: DbClient,
+  params: { id: string; userId: string },
+): Promise<MealTemplate | null> {
+  const { data, error } = await client
+    .from('meal_templates')
+    .select('*')
+    .eq('id', params.id)
+    .eq('user_id', params.userId)
+    .maybeSingle();
+  throwIfError(error);
+  return data;
+}
 
 function toInsert(row: MealTemplateWrite) {
   return {
@@ -55,7 +69,10 @@ function toInsert(row: MealTemplateWrite) {
   };
 }
 
-export async function listMealTemplates(client: DbClient, userId: string): Promise<MealTemplate[]> {
+export async function listMealTemplates(
+  client: DbClient,
+  userId: string,
+): Promise<MealTemplate[]> {
   const { data, error } = await client
     .from('meal_templates')
     .select('*')
@@ -92,24 +109,38 @@ export async function upsertMealTemplate(
     .select('*')
     .maybeSingle();
   if (insertError?.code === '23505') {
-    return { applied: false, reason: 'stale_or_tombstoned' };
+    const existing = await getMealTemplateForSync(client, {
+      id: parsed.id,
+      userId: parsed.user_id,
+    });
+    if (!existing) throwIfError(insertError);
+    return {
+      applied: false,
+      reason: 'stale_or_tombstoned',
+      row: existing,
+    };
   }
   throwIfError(insertError);
   if (inserted) {
     return { applied: true, reason: 'inserted', row: inserted };
   }
-  return { applied: false, reason: 'stale_or_tombstoned' };
+  return {
+    applied: false,
+    reason: 'stale_or_tombstoned',
+    row: await getMealTemplateForSync(client, { id: parsed.id, userId: parsed.user_id }),
+  };
 }
 
 export async function tombstoneMealTemplate(
   client: DbClient,
   params: { id: string; userId: string; updatedAt: string },
 ): Promise<void> {
+  const updatedAt = clampUpdatedAtIso(params.updatedAt);
   const { data, error } = await client
     .from('meal_templates')
     .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: clampUpdatedAtIso(params.updatedAt),
+      deleted_at: updatedAt,
+      updated_at: updatedAt,
     })
     .eq('id', params.id)
     .eq('user_id', params.userId)

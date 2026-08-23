@@ -1,0 +1,40 @@
+/** Human-reviewed public-domain World English Bible `engwebp` passages. */
+export const REVIEWED_SCRIPTURE_PASSAGES = [
+  {
+    id: 'e1000000-0000-4000-8000-000000000001',
+    key: 'psalm-23-1-3',
+    reference: 'Psalm 23:1–3',
+    text: 'The LORD is my shepherd; I shall lack nothing. He makes me lie down in green pastures. He leads me beside still waters. He restores my soul. He guides me in the paths of righteousness for his name’s sake.',
+    translation_key: 'engwebp', license: 'Public Domain',
+    source_url: 'https://ebible.org/engwebp/PSA023.htm',
+    tags: ['rest', 'guidance', 'hope'],
+    reviewed_at: '2026-08-22T00:00:00.000Z',
+  },
+  {
+    id: 'e1000000-0000-4000-8000-000000000002',
+    key: 'psalm-23-4', reference: 'Psalm 23:4',
+    text: 'Even though I walk through the valley of the shadow of death, I will fear no evil, for you are with me. Your rod and your staff, they comfort me.',
+    translation_key: 'engwebp', license: 'Public Domain',
+    source_url: 'https://ebible.org/engwebp/PSA023.htm',
+    tags: ['fear', 'comfort', 'courage'],
+    reviewed_at: '2026-08-22T00:00:00.000Z',
+  },
+  {
+    id: 'e1000000-0000-4000-8000-000000000003',
+    key: 'isaiah-41-10', reference: 'Isaiah 41:10',
+    text: 'Don’t you be afraid, for I am with you. Don’t be dismayed, for I am your God. I will strengthen you. Yes, I will help you. Yes, I will uphold you with the right hand of my righteousness.',
+    translation_key: 'engwebp', license: 'Public Domain',
+    source_url: 'https://ebible.org/engwebp/ISA041.htm',
+    tags: ['fear', 'strength', 'help'],
+    reviewed_at: '2026-08-22T00:00:00.000Z',
+  },
+  {
+    id: 'e1000000-0000-4000-8000-000000000004',
+    key: 'matthew-11-28-30', reference: 'Matthew 11:28–30',
+    text: 'Come to me, all you who labor and are heavily burdened, and I will give you rest. Take my yoke upon you and learn from me, for I am gentle and humble in heart; and you will find rest for your souls. For my yoke is easy, and my burden is light.',
+    translation_key: 'engwebp', license: 'Public Domain',
+    source_url: 'https://ebible.org/engwebp/MAT011.htm',
+    tags: ['rest', 'burden', 'gentleness'],
+    reviewed_at: '2026-08-22T00:00:00.000Z',
+  },
+] as const;

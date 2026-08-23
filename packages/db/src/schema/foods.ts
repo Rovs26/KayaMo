@@ -12,7 +12,13 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, emptyTextArray, serverUpdatedAt, updatedAt } from './columns';
+import {
+  createdAt,
+  deletedAt,
+  emptyTextArray,
+  serverUpdatedAt,
+  updatedAt,
+} from './columns';
 import { FOOD_SOURCES, sqlIn, type FoodSource, type ResolvedVia } from './constants';
 import { confidence, nutrient, numericAmount } from './types';
 
@@ -52,12 +58,22 @@ export const foods = pgTable(
     index('foods_name_trgm_idx').using('gin', sql`${table.name} extensions.gin_trgm_ops`),
     index('foods_name_tl_gin_idx').using('gin', table.name_tl),
     index('foods_server_updated_at_idx').on(table.server_updated_at),
-    check('foods_source_check', sql`${table.source} in (${sql.raw(sqlIn(FOOD_SOURCES))})`),
+    check(
+      'foods_source_check',
+      sql`${table.source} in (${sql.raw(sqlIn(FOOD_SOURCES))})`,
+    ),
     check(
       'foods_source_id_required',
       sql`${table.source} = 'user' or ${table.source_id} is not null`,
     ),
-    check('foods_confidence_check', sql`${table.confidence} >= 0 and ${table.confidence} <= 1`),
+    check(
+      'foods_confidence_check',
+      sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+    check(
+      'foods_nutrients_nonnegative',
+      sql`${table.kcal} >= 0 and ${table.protein_g} >= 0 and ${table.carbs_g} >= 0 and ${table.fat_g} >= 0 and ${table.fiber_g} >= 0 and ${table.sugar_g} >= 0 and ${table.sodium_mg} >= 0`,
+    ),
     check(
       'foods_user_created_by',
       sql`${table.source} <> 'user' or ${table.created_by} is not null`,
@@ -102,7 +118,10 @@ export const foodAliases = pgTable(
     server_updated_at: serverUpdatedAt,
   },
   (table) => [
-    uniqueIndex('food_aliases_food_alias_uidx').on(table.food_id, sql`lower(${table.alias})`),
+    uniqueIndex('food_aliases_food_alias_uidx').on(
+      table.food_id,
+      sql`lower(${table.alias})`,
+    ),
     index('food_aliases_alias_trgm_idx').using(
       'gin',
       sql`${table.alias} extensions.gin_trgm_ops`,
@@ -118,14 +137,18 @@ export const recipes = pgTable(
     name: text('name').notNull(),
     name_tl: text('name_tl').array().notNull().default(emptyTextArray),
     shared: boolean('shared').notNull().default(false),
-    promoted_food_id: uuid('promoted_food_id').references(() => foods.id, { onDelete: 'set null' }),
+    promoted_food_id: uuid('promoted_food_id').references(() => foods.id, {
+      onDelete: 'set null',
+    }),
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
   },
   (table) => [
     index('recipes_user_id_idx').on(table.user_id),
-    uniqueIndex('recipes_system_name_uidx').on(table.name).where(sql`${table.user_id} is null`),
+    uniqueIndex('recipes_system_name_uidx')
+      .on(table.name)
+      .where(sql`${table.user_id} is null`),
   ],
 );
 
@@ -140,7 +163,9 @@ export const recipeIngredients = pgTable(
       .notNull()
       .references(() => foods.id, { onDelete: 'restrict' }),
     quantity: numericAmount('quantity').notNull(),
-    serving_id: uuid('serving_id').references(() => servings.id, { onDelete: 'set null' }),
+    serving_id: uuid('serving_id').references(() => servings.id, {
+      onDelete: 'set null',
+    }),
     prep_note: text('prep_note'),
     created_at: createdAt,
     updated_at: updatedAt,
@@ -163,7 +188,9 @@ export const foodEntries = pgTable(
     food_id: uuid('food_id').references(() => foods.id, { onDelete: 'restrict' }),
     recipe_id: uuid('recipe_id').references(() => recipes.id, { onDelete: 'restrict' }),
     quantity: numericAmount('quantity').notNull(),
-    serving_id: uuid('serving_id').references(() => servings.id, { onDelete: 'set null' }),
+    serving_id: uuid('serving_id').references(() => servings.id, {
+      onDelete: 'set null',
+    }),
     grams: numericAmount('grams').notNull(),
     kcal: nutrient('kcal'),
     protein_g: nutrient('protein_g'),
@@ -189,7 +216,10 @@ export const foodEntries = pgTable(
     index('food_entries_user_logged_at_idx').on(table.user_id, table.logged_at.desc()),
     index('food_entries_user_logical_date_idx').on(table.user_id, table.logical_date),
     index('food_entries_server_updated_at_idx').on(table.server_updated_at),
-    check('food_entries_source_check', sql`${table.source} in (${sql.raw(sqlIn(FOOD_SOURCES))})`),
+    check(
+      'food_entries_source_check',
+      sql`${table.source} in (${sql.raw(sqlIn(FOOD_SOURCES))})`,
+    ),
     check(
       'food_entries_meal_slot_check',
       sql`${table.meal_slot} in ('almusal', 'tanghalian', 'hapunan', 'meryenda')`,
@@ -205,6 +235,10 @@ export const foodEntries = pgTable(
     check(
       'food_entries_confidence_check',
       sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+    check(
+      'food_entries_nutrients_nonnegative',
+      sql`${table.kcal} >= 0 and ${table.protein_g} >= 0 and ${table.carbs_g} >= 0 and ${table.fat_g} >= 0 and ${table.fiber_g} >= 0 and ${table.sugar_g} >= 0 and ${table.sodium_mg} >= 0`,
     ),
     check(
       'food_entries_food_xor_recipe',

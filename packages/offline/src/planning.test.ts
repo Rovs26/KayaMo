@@ -1,0 +1,117 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOfflineDb, resetOfflineDb } from './db';
+import {
+  completeLocalRoutine,
+  createLocalRoutine,
+  createLocalTask,
+  listLocalRoutineCompletions,
+  listLocalRoutines,
+  listLocalTasksForDate,
+  mergeRemoteRoutines,
+  mergeRemoteRoutineCompletions,
+  mergeRemoteTasks,
+  tombstoneLocalRoutine,
+  tombstoneLocalRoutineCompletion,
+  tombstoneLocalTask,
+} from './planning';
+import { pendingCount } from './queue';
+
+vi.mock('./sync', async () => {
+  const status = await import('./status');
+  return {
+    drainQueue: vi.fn(async () => undefined),
+    startSync: vi.fn(),
+    getSyncStatusSnapshot: vi.fn(() => ({ kind: 'synced' })),
+    bindStatusStore: status.subscribeSyncStatus,
+    resumeSync: vi.fn(),
+  };
+});
+
+describe('offline planning', () => {
+  beforeEach(async () => {
+    await resetOfflineDb();
+  });
+
+  afterEach(async () => {
+    await resetOfflineDb();
+  });
+
+  it('creates and completes a routine once per logical day', async () => {
+    const routine = await createLocalRoutine({
+      userId: 'user-a',
+      title: 'Morning walk',
+      scheduleDays: [6],
+    });
+    const first = await completeLocalRoutine({
+      userId: 'user-a',
+      routineId: routine.id,
+      logicalDate: '2026-08-22',
+    });
+    const duplicate = await completeLocalRoutine({
+      userId: 'user-a',
+      routineId: routine.id,
+      logicalDate: '2026-08-22',
+    });
+
+    expect(duplicate.id).toBe(first.id);
+    expect(await listLocalRoutineCompletions('user-a', '2026-08-22')).toHaveLength(1);
+    expect(await pendingCount()).toBe(3);
+    expect(await getOfflineDb().companion_events.count()).toBe(1);
+  });
+
+  it('keeps a task tombstoned after a stale sync round-trip', async () => {
+    const live = await createLocalTask({
+      id: '10000000-0000-4000-8000-000000000001',
+      userId: 'user-a',
+      title: 'Prepare breakfast',
+      scheduledFor: '2026-08-22',
+    });
+    await tombstoneLocalTask({ id: live.id, userId: 'user-a' });
+
+    await mergeRemoteTasks([{ ...live, updated_at: '2000-01-01T00:00:00.000Z' }]);
+
+    expect(await listLocalTasksForDate('user-a', '2026-08-22')).toEqual([]);
+    const raw = await getOfflineDb().tasks.get(live.id);
+    expect(raw?.deleted_at).toBeTruthy();
+    expect(await pendingCount()).toBe(1);
+  });
+
+  it('keeps a routine tombstoned after a stale sync round-trip', async () => {
+    const live = await createLocalRoutine({
+      id: '20000000-0000-4000-8000-000000000001',
+      userId: 'user-a',
+      title: 'Read for ten minutes',
+    });
+    await tombstoneLocalRoutine({ id: live.id, userId: 'user-a' });
+
+    await mergeRemoteRoutines([{ ...live, updated_at: '2000-01-01T00:00:00.000Z' }]);
+
+    expect(await listLocalRoutines('user-a')).toEqual([]);
+    const raw = await getOfflineDb().routines.get(live.id);
+    expect(raw?.deleted_at).toBeTruthy();
+    expect(await pendingCount()).toBe(1);
+  });
+
+  it('keeps a routine completion tombstoned after a stale sync round-trip', async () => {
+    const routine = await createLocalRoutine({
+      userId: 'user-a',
+      title: 'Evening reflection',
+    });
+    const live = await completeLocalRoutine({
+      userId: 'user-a',
+      routineId: routine.id,
+      logicalDate: '2026-08-22',
+    });
+    await tombstoneLocalRoutineCompletion({ id: live.id, userId: 'user-a' });
+
+    await mergeRemoteRoutineCompletions([
+      { ...live, updated_at: '2000-01-01T00:00:00.000Z' },
+    ]);
+
+    expect(await listLocalRoutineCompletions('user-a', '2026-08-22')).toEqual([]);
+    expect(
+      (await getOfflineDb().routine_completions.get(live.id))?.deleted_at,
+    ).toBeTruthy();
+    expect(await pendingCount()).toBe(3);
+  });
+});

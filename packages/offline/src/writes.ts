@@ -1,9 +1,21 @@
-import type { FoodEntryWrite, MealTemplate, MealTemplateItem, MealTemplateWrite } from '@kayamo/db';
+import type {
+  FoodEntryWrite,
+  MealTemplate,
+  MealTemplateItem,
+  MealTemplateWrite,
+} from '@kayamo/db';
 import { incomingWins } from '@kayamo/db';
-import { getOfflineDb, type LocalFoodEntry, type LocalMealTemplate, type LocalWeightLog, type LocalWorkout } from './db';
+import {
+  getOfflineDb,
+  type LocalFoodEntry,
+  type LocalMealTemplate,
+  type LocalWeightLog,
+  type LocalWorkout,
+} from './db';
 import { logicalDateFromInstant } from './logical-date';
 import { enqueueUpsert } from './queue';
 import { drainQueue } from './sync';
+import { createLocalCompanionEvent } from './journey';
 
 function newId(): string {
   return crypto.randomUUID();
@@ -11,6 +23,21 @@ function newId(): string {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function requireNumeric(
+  name: string,
+  value: string,
+  options: { positive?: boolean; max?: number } = {},
+): void {
+  const numeric = Number(value);
+  if (
+    !Number.isFinite(numeric) ||
+    (options.positive ? numeric <= 0 : numeric < 0) ||
+    (options.max !== undefined && numeric > options.max)
+  ) {
+    throw new Error(`${name} is outside the allowed range`);
+  }
 }
 
 export type LogFoodEntryInput = {
@@ -35,10 +62,25 @@ export type LogFoodEntryInput = {
   confidence?: string;
   timeZone?: string;
   dayStartsAt?: string;
+  loggedAt?: string;
 };
 
 export async function logFoodEntry(input: LogFoodEntryInput): Promise<LocalFoodEntry> {
-  const loggedAt = nowIso();
+  requireNumeric('quantity', input.quantity, { positive: true });
+  requireNumeric('grams', input.grams, { positive: true });
+  for (const [name, value] of Object.entries({
+    kcal: input.kcal,
+    protein_g: input.protein_g,
+    carbs_g: input.carbs_g,
+    fat_g: input.fat_g,
+    fiber_g: input.fiber_g,
+    sugar_g: input.sugar_g,
+    sodium_mg: input.sodium_mg,
+  })) {
+    requireNumeric(name, value);
+  }
+  requireNumeric('confidence', input.confidence ?? '0.80', { max: 1 });
+  const loggedAt = input.loggedAt ?? nowIso();
   const updatedAt = loggedAt;
   const entry: LocalFoodEntry = {
     id: newId(),
@@ -74,11 +116,20 @@ export async function logFoodEntry(input: LogFoodEntryInput): Promise<LocalFoodE
 
   await getOfflineDb().food_entries.put(entry);
   await enqueueUpsert('food_entries', entry.id, toFoodEntryPayload(entry));
+  await createLocalCompanionEvent({
+    userId: input.userId,
+    eventType: 'food_logged',
+    sourceTable: 'food_entries',
+    sourceId: entry.id,
+    logicalDate: entry.logical_date,
+  });
   void drainQueue();
   return entry;
 }
 
-export async function logFoodEntries(inputs: LogFoodEntryInput[]): Promise<LocalFoodEntry[]> {
+export async function logFoodEntries(
+  inputs: LogFoodEntryInput[],
+): Promise<LocalFoodEntry[]> {
   const rows: LocalFoodEntry[] = [];
   for (const input of inputs) {
     rows.push(await logFoodEntry(input));
@@ -103,7 +154,11 @@ export async function tombstoneLocalFoodEntry(params: {
   const existing = await db.food_entries.get(params.id);
   if (!existing || existing.user_id !== params.userId) return;
   const updatedAt = nowIso();
-  const next: LocalFoodEntry = { ...existing, deleted_at: updatedAt, updated_at: updatedAt };
+  const next: LocalFoodEntry = {
+    ...existing,
+    deleted_at: updatedAt,
+    updated_at: updatedAt,
+  };
   await db.food_entries.put(next);
   await enqueueUpsert('food_entries', next.id, toFoodEntryPayload(next));
   void drainQueue();
@@ -113,14 +168,20 @@ export async function listLocalFoodEntries(
   userId: string,
   logicalDate: string,
 ): Promise<LocalFoodEntry[]> {
-  const rows = await getOfflineDb().food_entries.where('user_id').equals(userId).toArray();
+  const rows = await getOfflineDb()
+    .food_entries.where('user_id')
+    .equals(userId)
+    .toArray();
   return rows
     .filter((row) => row.logical_date === logicalDate && !row.deleted_at)
     .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
 }
 
 export async function listLocalFoodHistory(userId: string): Promise<LocalFoodEntry[]> {
-  const rows = await getOfflineDb().food_entries.where('user_id').equals(userId).toArray();
+  const rows = await getOfflineDb()
+    .food_entries.where('user_id')
+    .equals(userId)
+    .toArray();
   return rows
     .filter((row) => !row.deleted_at && row.food_id)
     .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
@@ -159,8 +220,13 @@ export async function saveMealTemplate(input: {
   return row;
 }
 
-export async function listLocalMealTemplates(userId: string): Promise<LocalMealTemplate[]> {
-  const rows = await getOfflineDb().meal_templates.where('user_id').equals(userId).toArray();
+export async function listLocalMealTemplates(
+  userId: string,
+): Promise<LocalMealTemplate[]> {
+  const rows = await getOfflineDb()
+    .meal_templates.where('user_id')
+    .equals(userId)
+    .toArray();
   return rows
     .filter((row) => !row.deleted_at)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -174,7 +240,11 @@ export async function tombstoneLocalMealTemplate(params: {
   const existing = await db.meal_templates.get(params.id);
   if (!existing || existing.user_id !== params.userId) return;
   const updatedAt = nowIso();
-  const next: LocalMealTemplate = { ...existing, deleted_at: updatedAt, updated_at: updatedAt };
+  const next: LocalMealTemplate = {
+    ...existing,
+    deleted_at: updatedAt,
+    updated_at: updatedAt,
+  };
   await db.meal_templates.put(next);
   await enqueueUpsert('meal_templates', next.id, toMealTemplatePayload(next));
   void drainQueue();
@@ -196,8 +266,10 @@ export async function logWeight(input: {
   source: LocalWeightLog['source'];
   timeZone?: string;
   dayStartsAt?: string;
+  loggedAt?: string;
 }): Promise<LocalWeightLog> {
-  const loggedAt = nowIso();
+  requireNumeric('weightKg', input.weightKg, { positive: true });
+  const loggedAt = input.loggedAt ?? nowIso();
   const logicalDate = logicalDateFromInstant(loggedAt, input.timeZone, input.dayStartsAt);
   const row: LocalWeightLog = {
     id: newId(),
@@ -213,9 +285,100 @@ export async function logWeight(input: {
     deleted_at: null,
   };
   await getOfflineDb().weight_logs.put(row);
-  await enqueueUpsert('weight_logs', row.id, { ...row });
+  await enqueueUpsert('weight_logs', row.id, toWeightLogPayload(row));
   void drainQueue();
   return row;
+}
+
+export async function listLocalWeightLogs(userId: string): Promise<LocalWeightLog[]> {
+  const rows = await getOfflineDb().weight_logs.where('user_id').equals(userId).toArray();
+  return rows
+    .filter((row) => !row.deleted_at)
+    .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+}
+
+export async function tombstoneLocalWeightLog(params: {
+  id: string;
+  userId: string;
+}): Promise<void> {
+  const db = getOfflineDb();
+  const existing = await db.weight_logs.get(params.id);
+  if (!existing || existing.user_id !== params.userId || existing.deleted_at) return;
+  const updatedAt = nowIso();
+  const next: LocalWeightLog = {
+    ...existing,
+    deleted_at: updatedAt,
+    updated_at: updatedAt,
+  };
+  await db.weight_logs.put(next);
+  await enqueueUpsert('weight_logs', next.id, toWeightLogPayload(next));
+  void drainQueue();
+}
+
+export async function mergeRemoteWeightLogs(rows: LocalWeightLog[]): Promise<void> {
+  const db = getOfflineDb();
+  for (const row of rows) {
+    const existing = await db.weight_logs.get(row.id);
+    if (!existing || incomingWins(existing.updated_at, row.updated_at)) {
+      await db.weight_logs.put(row);
+    }
+  }
+}
+
+/**
+ * Explicit local companion to the server recompute RPC. This never runs as a
+ * side effect of changing profile settings and does not enqueue ordinary LWW
+ * writes because logical_date is server-owned at the write boundary.
+ */
+export async function recomputeLocalLogicalDates(params: {
+  userId: string;
+  timeZone: string;
+  dayStartsAt: string;
+}): Promise<{ food_entries: number; weight_logs: number; workouts: number }> {
+  const db = getOfflineDb();
+  const counts = { food_entries: 0, weight_logs: 0, workouts: 0 };
+  await db.transaction('rw', db.food_entries, db.weight_logs, db.workouts, async () => {
+    const foods = await db.food_entries.where('user_id').equals(params.userId).toArray();
+    for (const row of foods) {
+      if (row.deleted_at) continue;
+      const logicalDate = logicalDateFromInstant(
+        row.logged_at,
+        params.timeZone,
+        params.dayStartsAt,
+      );
+      if (logicalDate !== row.logical_date) {
+        await db.food_entries.update(row.id, { logical_date: logicalDate });
+        counts.food_entries += 1;
+      }
+    }
+    const weights = await db.weight_logs.where('user_id').equals(params.userId).toArray();
+    for (const row of weights) {
+      if (row.deleted_at) continue;
+      const logicalDate = logicalDateFromInstant(
+        row.logged_at,
+        params.timeZone,
+        params.dayStartsAt,
+      );
+      if (logicalDate !== row.logical_date) {
+        await db.weight_logs.update(row.id, { logical_date: logicalDate });
+        counts.weight_logs += 1;
+      }
+    }
+    const workouts = await db.workouts.where('user_id').equals(params.userId).toArray();
+    for (const row of workouts) {
+      if (row.deleted_at) continue;
+      const logicalDate = logicalDateFromInstant(
+        row.started_at,
+        params.timeZone,
+        params.dayStartsAt,
+      );
+      if (logicalDate !== row.logical_date) {
+        await db.workouts.update(row.id, { logical_date: logicalDate });
+        counts.workouts += 1;
+      }
+    }
+  });
+  return counts;
 }
 
 export async function logWorkout(input: {
@@ -233,6 +396,10 @@ export async function logWorkout(input: {
     logical_date: logicalDateFromInstant(startedAt, input.timeZone, input.dayStartsAt),
     notes: input.notes ?? null,
     routine_id: null,
+    plan_id: null,
+    plan_day_index: null,
+    status: 'active',
+    is_deload: false,
     created_at: startedAt,
     updated_at: startedAt,
     server_updated_at: startedAt,
@@ -283,6 +450,19 @@ function toMealTemplatePayload(row: LocalMealTemplate): MealTemplateWrite {
     items: row.items,
     updated_at: row.updated_at,
     created_at: row.created_at,
+    deleted_at: row.deleted_at,
+  };
+}
+
+function toWeightLogPayload(row: LocalWeightLog) {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    logged_at: row.logged_at,
+    measured_on: row.measured_on,
+    weight_kg: row.weight_kg,
+    source: row.source,
+    updated_at: row.updated_at,
     deleted_at: row.deleted_at,
   };
 }

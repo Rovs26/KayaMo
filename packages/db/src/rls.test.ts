@@ -6,9 +6,57 @@ import { isDbTestConfigured } from './env';
 import {
   insertFoodEntry,
   listFoodEntriesByLogicalDate,
-  tombstoneFoodEntry,
   upsertFoodEntry,
 } from './queries/food-entries';
+import { recomputeLogicalDates } from './queries/profiles';
+import {
+  appendExpenditureEstimate,
+  insertNutritionTargets,
+  listEffectiveNutritionTargets,
+  listExpenditureEstimates,
+} from './queries/guidance';
+import {
+  listActiveRoutines,
+  listRoutineCompletionsForDate,
+  listTasksForDate,
+  upsertRoutine,
+  upsertRoutineCompletion,
+  upsertTask,
+} from './queries/planning';
+import {
+  listAgentMemories,
+  listCocoConversations,
+  listCocoMessages,
+  upsertAgentMemory,
+  upsertCocoConversation,
+  upsertCocoMessage,
+} from './queries/coco';
+import { listWorkoutPlans, upsertWorkoutPlan } from './queries/training-plans';
+import {
+  insertWorkout,
+  listWorkoutSets,
+  upsertWorkout,
+  upsertWorkoutSet,
+} from './queries/workouts';
+import {
+  getCompanionState,
+  listActiveHabits,
+  listCompanionEvents,
+  listGoals,
+  listUserAchievements,
+  recordCompanionEvent,
+  upsertGoal,
+  upsertHabit,
+} from './queries/journey';
+import {
+  getDailyLoopPreferences,
+  getDailyPlan,
+  listFocusSessions,
+  listScriptureByTag,
+  upsertDailyLoopPreferences,
+  upsertDailyPlan,
+  upsertFocusSession,
+} from './queries/daily-loop';
 
 const configured = isDbTestConfigured();
 
@@ -29,7 +77,9 @@ function createServiceClient() {
   });
 }
 
-describe.skipIf(!configured)('RLS and tombstones', () => {
+const describeWithDatabase = configured ? describe : describe.skip;
+
+describeWithDatabase('RLS and tombstones', () => {
   const runId = randomUUID();
   const password = `${randomUUID()}Aa1!`;
   let service: ReturnType<typeof createServiceClient>;
@@ -37,8 +87,11 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
   let userB: Authed;
   let anon: SupabaseClient<Database>;
   let foodId: string;
+  let exerciseId: string;
 
   beforeAll(async () => {
+    // Vitest still evaluates suite hooks for a conditionally skipped suite.
+    if (!configured) return;
     service = createServiceClient();
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -46,8 +99,20 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    userA = await createAuthedUser(service, url, anonKey, `ch04-a-${runId}@kayamo.test`, password);
-    userB = await createAuthedUser(service, url, anonKey, `ch04-b-${runId}@kayamo.test`, password);
+    userA = await createAuthedUser(
+      service,
+      url,
+      anonKey,
+      `ch04-a-${runId}@kayamo.test`,
+      password,
+    );
+    userB = await createAuthedUser(
+      service,
+      url,
+      anonKey,
+      `ch04-b-${runId}@kayamo.test`,
+      password,
+    );
 
     foodId = randomUUID();
     const { error } = await service.from('foods').insert({
@@ -66,6 +131,18 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
       updated_at: new Date().toISOString(),
     });
     if (error) throw error;
+
+    exerciseId = randomUUID();
+    const { error: exerciseError } = await service.from('exercises').insert({
+      id: exerciseId,
+      source: 'canonical',
+      name: 'RLS fixture squat',
+      muscles: ['quadriceps'],
+      default_rep_min: 5,
+      default_rep_max: 8,
+      updated_at: new Date().toISOString(),
+    });
+    if (exerciseError) throw exerciseError;
   });
 
   afterAll(async () => {
@@ -76,6 +153,7 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
     }
     if (userA) await service.auth.admin.deleteUser(userA.id);
     if (userB) await service.auth.admin.deleteUser(userB.id);
+    if (exerciseId) await service.from('exercises').delete().eq('id', exerciseId);
   });
 
   it('blocks user B from reading user A food_entries', async () => {
@@ -117,17 +195,492 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
     });
     expect(asOther).toEqual([]);
 
-    const { data: byId } = await userB.client.from('food_entries').select('id').eq('id', entryId);
+    const { data: byId } = await userB.client
+      .from('food_entries')
+      .select('id')
+      .eq('id', entryId);
     expect(byId ?? []).toEqual([]);
   });
 
-  it('does not let anon select foods', async () => {
-    const { data, error } = await anon.from('foods').select('id').eq('id', foodId);
-    expect(data === null || data.length === 0).toBe(true);
-    expect(error).toBeTruthy();
+  it('blocks user B from reading or mutating user A tasks', async () => {
+    const taskId = randomUUID();
+    const updatedAt = '2026-08-22T06:00:00.000Z';
+    const inserted = await upsertTask(userA.client, {
+      id: taskId,
+      user_id: userA.id,
+      title: 'Private task',
+      notes: null,
+      scheduled_for: '2026-08-22',
+      due_at: null,
+      completed_at: null,
+      sort_order: 0,
+      origin: 'user',
+      updated_at: updatedAt,
+      deleted_at: null,
+    });
+    expect(inserted.applied).toBe(true);
+
+    const ownerRows = await listTasksForDate(userA.client, {
+      userId: userA.id,
+      logicalDate: '2026-08-22',
+    });
+    expect(ownerRows.some((row) => row.id === taskId)).toBe(true);
+
+    const otherRows = await listTasksForDate(userB.client, {
+      userId: userA.id,
+      logicalDate: '2026-08-22',
+    });
+    expect(otherRows).toEqual([]);
+
+    const { data, error } = await userB.client
+      .from('tasks')
+      .update({ title: 'Stolen', updated_at: '2026-08-22T07:00:00.000Z' })
+      .eq('id', taskId)
+      .select('id');
+    if (error) throw error;
+    expect(data).toEqual([]);
   });
 
-  it('keeps a tombstoned food_entry deleted after a stale sync upsert', async () => {
+  it('isolates daily plans, focus sessions, and daily-loop preferences', async () => {
+    const at = '2026-08-22T06:00:00.000Z';
+    const planId = randomUUID();
+    const focusId = randomUUID();
+    expect((await upsertDailyPlan(userA.client, {
+      id: planId, user_id: userA.id, logical_date: '2026-08-22',
+      selected_action_kind: 'custom', selected_record_id: null,
+      selected_label_snapshot: 'Private next action', morning_completed_at: at,
+      evening_completed_at: null, updated_at: at, deleted_at: null,
+    })).applied).toBe(true);
+    expect((await upsertFocusSession(userA.client, {
+      id: focusId, user_id: userA.id, daily_plan_id: planId,
+      logical_date: '2026-08-22', target_kind: 'custom', target_record_id: null,
+      target_label_snapshot: 'Private next action', planned_minutes: 25,
+      status: 'scheduled', started_at: null, ends_at: null, completed_at: null,
+      cancelled_at: null, updated_at: at, deleted_at: null,
+    })).applied).toBe(true);
+    expect((await upsertDailyLoopPreferences(userA.client, {
+      user_id: userA.id, notifications_enabled: true,
+      morning_reminder_at: '08:00:00', evening_reminder_at: '20:00:00',
+      quiet_starts_at: '22:00:00', quiet_ends_at: '07:00:00',
+      faith_enabled: true, updated_at: at, deleted_at: null,
+    })).applied).toBe(true);
+
+    expect(await getDailyPlan(userB.client, { userId: userA.id, logicalDate: '2026-08-22' })).toBeNull();
+    expect(await listFocusSessions(userB.client, { userId: userA.id, logicalDate: '2026-08-22' })).toEqual([]);
+    expect(await getDailyLoopPreferences(userB.client, userA.id)).toBeNull();
+
+    const mutation = await userB.client.from('daily_plans')
+      .update({ selected_label_snapshot: 'Stolen', updated_at: '2026-08-22T07:00:00.000Z' })
+      .eq('id', planId).select('id');
+    if (mutation.error) throw mutation.error;
+    expect(mutation.data).toEqual([]);
+  });
+
+  it('keeps Scripture authenticated-only and query-gated by faith opt-in', async () => {
+    const { data: anonRows, error: anonError } = await anon
+      .from('scripture_passages').select('id');
+    expect(anonRows ?? []).toEqual([]);
+    expect(anonError).toBeTruthy();
+    expect(await listScriptureByTag(userA.client, { faithEnabled: false, tag: 'hope' })).toEqual([]);
+    expect((await listScriptureByTag(userA.client, { faithEnabled: true, tag: 'hope' })).length).toBeGreaterThan(0);
+  });
+
+  it('isolates web-push subscriptions by owner', async () => {
+    const endpoint = `https://push.example.test/${randomUUID()}`;
+    const { error: insertError } = await userA.client.from('push_subscriptions').insert({
+      user_id: userA.id, endpoint, p256dh: 'public-key', auth: 'auth-secret',
+      expires_at: null, updated_at: new Date().toISOString(),
+    });
+    if (insertError) throw insertError;
+    const other = await userB.client.from('push_subscriptions').select('id')
+      .eq('user_id', userA.id);
+    if (other.error) throw other.error;
+    expect(other.data).toEqual([]);
+    const deleted = await userB.client.from('push_subscriptions').delete()
+      .eq('endpoint', endpoint).select('id');
+    if (deleted.error) throw deleted.error;
+    expect(deleted.data).toEqual([]);
+  });
+
+  it('isolates routines and routine completions by owner', async () => {
+    const routineId = randomUUID();
+    const completionId = randomUUID();
+    const updatedAt = '2026-08-22T06:00:00.000Z';
+    const routine = await upsertRoutine(userA.client, {
+      id: routineId,
+      user_id: userA.id,
+      title: 'Private routine',
+      notes: null,
+      schedule_days: [6],
+      preferred_time: '07:00:00',
+      active: true,
+      sort_order: 0,
+      updated_at: updatedAt,
+      deleted_at: null,
+    });
+    expect(routine.applied).toBe(true);
+    const completion = await upsertRoutineCompletion(userA.client, {
+      id: completionId,
+      user_id: userA.id,
+      routine_id: routineId,
+      logical_date: '2026-08-22',
+      completed_at: updatedAt,
+      updated_at: updatedAt,
+      deleted_at: null,
+    });
+    expect(completion.applied).toBe(true);
+
+    const ownerRoutines = await listActiveRoutines(userA.client, {
+      userId: userA.id,
+      weekday: 6,
+    });
+    expect(ownerRoutines.some((row) => row.id === routineId)).toBe(true);
+    const ownerCompletions = await listRoutineCompletionsForDate(userA.client, {
+      userId: userA.id,
+      logicalDate: '2026-08-22',
+    });
+    expect(ownerCompletions.some((row) => row.id === completionId)).toBe(true);
+
+    expect(
+      await listActiveRoutines(userB.client, { userId: userA.id, weekday: 6 }),
+    ).toEqual([]);
+    expect(
+      await listRoutineCompletionsForDate(userB.client, {
+        userId: userA.id,
+        logicalDate: '2026-08-22',
+      }),
+    ).toEqual([]);
+
+    const { data: routineMutation, error: routineError } = await userB.client
+      .from('routines')
+      .update({ title: 'Stolen', updated_at: '2026-08-22T07:00:00.000Z' })
+      .eq('id', routineId)
+      .select('id');
+    if (routineError) throw routineError;
+    expect(routineMutation).toEqual([]);
+
+    const { data: completionMutation, error: completionError } = await userB.client
+      .from('routine_completions')
+      .update({
+        completed_at: '2026-08-22T07:00:00.000Z',
+        updated_at: '2026-08-22T07:00:00.000Z',
+      })
+      .eq('id', completionId)
+      .select('id');
+    if (completionError) throw completionError;
+    expect(completionMutation).toEqual([]);
+  });
+
+  it('isolates Coco conversations, messages, and explicit memories by owner', async () => {
+    const conversationId = randomUUID();
+    const messageId = randomUUID();
+    const memoryId = randomUUID();
+    const updatedAt = '2026-08-22T08:00:00.000Z';
+    expect(
+      (
+        await upsertCocoConversation(userA.client, {
+          id: conversationId,
+          user_id: userA.id,
+          title: 'Private Coco chat',
+          updated_at: updatedAt,
+          deleted_at: null,
+        })
+      ).applied,
+    ).toBe(true);
+    expect(
+      (
+        await upsertCocoMessage(userA.client, {
+          id: messageId,
+          user_id: userA.id,
+          conversation_id: conversationId,
+          role: 'user',
+          content: 'Private ordinary chat message',
+          response_source: null,
+          updated_at: updatedAt,
+          deleted_at: null,
+        })
+      ).applied,
+    ).toBe(true);
+    expect(
+      (
+        await upsertAgentMemory(userA.client, {
+          id: memoryId,
+          user_id: userA.id,
+          kind: 'preference',
+          content: 'I prefer quiet mornings.',
+          embedding: null,
+          embedding_model: 'none',
+          explicit: true,
+          updated_at: updatedAt,
+          deleted_at: null,
+        })
+      ).applied,
+    ).toBe(true);
+
+    expect(await listCocoConversations(userB.client, userA.id)).toEqual([]);
+    expect(
+      await listCocoMessages(userB.client, {
+        userId: userA.id,
+        conversationId,
+      }),
+    ).toEqual([]);
+    expect(await listAgentMemories(userB.client, userA.id)).toEqual([]);
+
+    const { data: conversationMutation, error: conversationError } = await userB.client
+      .from('coco_conversations')
+      .update({ title: 'Stolen', updated_at: '2026-08-22T09:00:00.000Z' })
+      .eq('id', conversationId)
+      .select('id');
+    if (conversationError) throw conversationError;
+    expect(conversationMutation).toEqual([]);
+
+    const { data: messageMutation, error: messageError } = await userB.client
+      .from('coco_messages')
+      .update({ content: 'Stolen', updated_at: '2026-08-22T09:00:00.000Z' })
+      .eq('id', messageId)
+      .select('id');
+    if (messageError) throw messageError;
+    expect(messageMutation).toEqual([]);
+
+    const { data: memoryMutation, error: memoryError } = await userB.client
+      .from('agent_memory')
+      .update({ content: 'Stolen', updated_at: '2026-08-22T09:00:00.000Z' })
+      .eq('id', memoryId)
+      .select('id');
+    if (memoryError) throw memoryError;
+    expect(memoryMutation).toEqual([]);
+  });
+
+  it('appends expenditure revisions, isolates guidance, and rejects unsafe targets', async () => {
+    const at = '2026-08-22T10:00:00.000Z';
+    const baseEstimate = {
+      user_id: userA.id,
+      date: '2026-08-22',
+      tdee_kcal: '2200',
+      ci_low: '1900',
+      ci_high: '2500',
+      method: 'blended',
+      source: 'expenditure_engine' as const,
+      confidence: '0.60',
+      completeness: '0.75',
+      days_of_data: 21,
+      inputs_hash: 'hash-a',
+      updated_at: at,
+    };
+    const first = await appendExpenditureEstimate(userA.client, {
+      ...baseEstimate,
+      id: randomUUID(),
+    });
+    const correction = await appendExpenditureEstimate(userA.client, {
+      ...baseEstimate,
+      id: randomUUID(),
+      tdee_kcal: '2250',
+      inputs_hash: 'hash-b',
+    });
+    expect(first.revision).toBe(1);
+    expect(correction.revision).toBe(2);
+    expect(await listExpenditureEstimates(userB.client, { userId: userA.id })).toEqual(
+      [],
+    );
+
+    const unsafe = await userA.client.from('targets').insert({
+      id: randomUUID(),
+      user_id: userA.id,
+      effective_from: '2026-08-22',
+      kcal: '1',
+      protein_g: '1',
+      carbs_g: '1',
+      fat_g: '1',
+      day_type: 'rest',
+      source: 'target_engine',
+      confidence: '0.60',
+      updated_at: at,
+    });
+    expect(unsafe.error?.code).toBe('23514');
+
+    await insertNutritionTargets(userA.client, [
+      {
+        id: randomUUID(),
+        user_id: userA.id,
+        effective_from: '2026-08-22',
+        kcal: '1800',
+        protein_g: '120',
+        carbs_g: '180',
+        fat_g: '66',
+        day_type: 'rest',
+        clamped: false,
+        weekly_rate_percent: '0.5',
+        clamp_reasons: [],
+        source: 'target_engine',
+        confidence: '0.60',
+        updated_at: at,
+      },
+    ]);
+    expect(
+      await listEffectiveNutritionTargets(userB.client, {
+        userId: userA.id,
+        date: '2026-08-22',
+      }),
+    ).toEqual([]);
+  });
+
+  it.each(['foods', 'servings', 'exercises'] as const)(
+    'does not let anon select %s',
+    async (table) => {
+      const { data, error } = await anon.from(table).select('id').limit(1);
+      expect(data === null || data.length === 0).toBe(true);
+      expect(error).toBeTruthy();
+    },
+  );
+
+  it('does not let user A forge server_updated_at', async () => {
+    const entryId = randomUUID();
+    const loggedAt = '2026-08-16T04:30:00.000Z';
+    const forgedCursor = '2099-01-01T00:00:00.000Z';
+    const { data, error } = await userA.client
+      .from('food_entries')
+      .insert({
+        id: entryId,
+        user_id: userA.id,
+        logged_at: loggedAt,
+        meal_slot: 'tanghalian',
+        food_id: foodId,
+        quantity: '1',
+        grams: '100',
+        kcal: '100',
+        protein_g: '1',
+        carbs_g: '1',
+        fat_g: '1',
+        fiber_g: '0',
+        sugar_g: '0',
+        sodium_mg: '0',
+        source: 'ph_core',
+        confidence: '0.50',
+        input_method: 'search',
+        food_name_snapshot: 'RLS fixture food',
+        serving_label_snapshot: '100 g',
+        resolved_via: 'ph_core',
+        updated_at: loggedAt,
+        // Compile-time generated types exclude this field. The cast simulates
+        // an untrusted REST client attempting to forge the sync cursor.
+        server_updated_at: forgedCursor,
+      } as never)
+      .select('server_updated_at')
+      .single();
+    if (error) throw error;
+    expect(data.server_updated_at).not.toBe(forgedCursor);
+  });
+
+  it('clamps a raw client updated_at more than five minutes in the future', async () => {
+    const entryId = randomUUID();
+    const loggedAt = '2026-08-16T04:45:00.000Z';
+    const forgedUpdatedAt = '2099-01-01T00:00:00.000Z';
+    const beforeWrite = Date.now();
+    const { data, error } = await userA.client
+      .from('food_entries')
+      .insert({
+        id: entryId,
+        user_id: userA.id,
+        logged_at: loggedAt,
+        meal_slot: 'tanghalian',
+        food_id: foodId,
+        quantity: '1',
+        grams: '100',
+        kcal: '100',
+        protein_g: '1',
+        carbs_g: '1',
+        fat_g: '1',
+        fiber_g: '0',
+        sugar_g: '0',
+        sodium_mg: '0',
+        source: 'ph_core',
+        confidence: '0.50',
+        input_method: 'search',
+        food_name_snapshot: 'RLS fixture food',
+        serving_label_snapshot: '100 g',
+        resolved_via: 'ph_core',
+        updated_at: forgedUpdatedAt,
+      })
+      .select('updated_at')
+      .single();
+    if (error) throw error;
+    const clamped = new Date(data.updated_at).getTime();
+    expect(data.updated_at).not.toBe(forgedUpdatedAt);
+    expect(clamped).toBeGreaterThanOrEqual(beforeWrite - 60_000);
+    expect(clamped).toBeLessThanOrEqual(Date.now() + 60_000);
+  });
+
+  it('preserves logical_date until the explicit recompute operation', async () => {
+    const entryId = randomUUID();
+    const loggedAt = '2026-08-16T00:30:00.000Z';
+    const { data: inserted, error: insertError } = await userA.client
+      .from('food_entries')
+      .insert({
+        id: entryId,
+        user_id: userA.id,
+        logged_at: loggedAt,
+        logical_date: '2099-01-01',
+        meal_slot: 'almusal',
+        food_id: foodId,
+        quantity: '1',
+        grams: '100',
+        kcal: '100',
+        protein_g: '1',
+        carbs_g: '1',
+        fat_g: '1',
+        fiber_g: '0',
+        sugar_g: '0',
+        sodium_mg: '0',
+        source: 'ph_core',
+        confidence: '0.50',
+        input_method: 'search',
+        food_name_snapshot: 'RLS fixture food',
+        serving_label_snapshot: '100 g',
+        resolved_via: 'ph_core',
+        updated_at: loggedAt,
+      } as never)
+      .select('logical_date')
+      .single();
+    if (insertError) throw insertError;
+    expect(inserted.logical_date).toBe('2026-08-16');
+
+    const { error: profileError } = await userA.client
+      .from('profiles')
+      .update({ day_starts_at: '09:00:00', updated_at: new Date().toISOString() })
+      .eq('user_id', userA.id);
+    if (profileError) throw profileError;
+
+    const { data: preserved, error: preserveError } = await userA.client
+      .from('food_entries')
+      .update({
+        serving_label_snapshot: 'forged logical date attempt',
+        logical_date: '2099-01-01',
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', entryId)
+      .select('logical_date')
+      .single();
+    if (preserveError) throw preserveError;
+    expect(preserved.logical_date).toBe('2026-08-16');
+
+    const recomputed = await recomputeLogicalDates(userA.client);
+    expect(recomputed.food_entries).toBeGreaterThanOrEqual(1);
+    const { data: afterRecompute, error: readError } = await userA.client
+      .from('food_entries')
+      .select('logical_date')
+      .eq('id', entryId)
+      .single();
+    if (readError) throw readError;
+    expect(afterRecompute.logical_date).toBe('2026-08-15');
+
+    const { error: restoreError } = await userA.client
+      .from('profiles')
+      .update({ day_starts_at: '00:00:00', updated_at: new Date().toISOString() })
+      .eq('user_id', userA.id);
+    if (restoreError) throw restoreError;
+  });
+
+  it('keeps a tombstoned food_entry deleted after an offline/server sync round-trip', async () => {
     const entryId = randomUUID();
     const t1 = '2026-08-16T05:00:00.000Z';
     const t2 = '2026-08-16T06:00:00.000Z';
@@ -156,10 +709,18 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
     };
 
     await insertFoodEntry(userA.client, live);
-    await tombstoneFoodEntry(userA.client, { id: entryId, userId: userA.id, updatedAt: t2 });
+    const tombstoned = await upsertFoodEntry(userA.client, {
+      ...live,
+      deleted_at: t2,
+      updated_at: t2,
+    });
+    expect(tombstoned.applied).toBe(true);
+    if (!tombstoned.applied) throw new Error('tombstone sync was not applied');
+    expect(tombstoned.row.deleted_at).toBeTruthy();
 
     const stale = await upsertFoodEntry(userA.client, live);
     expect(stale.applied).toBe(false);
+    expect(stale.row?.deleted_at).toBeTruthy();
 
     const listed = await listFoodEntriesByLogicalDate(userA.client, {
       userId: userA.id,
@@ -174,6 +735,290 @@ describe.skipIf(!configured)('RLS and tombstones', () => {
       .maybeSingle();
     if (error) throw error;
     expect(raw?.deleted_at).toBeTruthy();
+  });
+
+  it('isolates workout plans by owner', async () => {
+    const planId = randomUUID();
+    const updatedAt = '2026-08-22T08:00:00.000Z';
+    const inserted = await upsertWorkoutPlan(userA.client, {
+      id: planId,
+      user_id: userA.id,
+      title: 'Private strength plan',
+      description: null,
+      active: true,
+      updated_at: updatedAt,
+      deleted_at: null,
+    });
+    expect(inserted.applied).toBe(true);
+    expect(
+      (await listWorkoutPlans(userA.client, userA.id)).some((p) => p.id === planId),
+    ).toBe(true);
+    expect(await listWorkoutPlans(userB.client, userA.id)).toEqual([]);
+
+    const { data, error } = await userB.client
+      .from('workout_plans')
+      .update({ title: 'Stolen plan', updated_at: '2026-08-22T09:00:00.000Z' })
+      .eq('id', planId)
+      .select('id');
+    if (error) throw error;
+    expect(data).toEqual([]);
+  });
+
+  it('derives workout-set ownership and stores Brzycki only from the source set', async () => {
+    const workoutId = randomUUID();
+    const setId = randomUUID();
+    const at = '2026-08-22T10:00:00.000Z';
+    const workout = await insertWorkout(userA.client, {
+      id: workoutId,
+      user_id: userA.id,
+      started_at: at,
+      ended_at: null,
+      notes: null,
+      routine_id: null,
+      plan_id: null,
+      plan_day_index: null,
+      status: 'active',
+      is_deload: false,
+      updated_at: at,
+      deleted_at: null,
+    });
+    const inserted = await upsertWorkoutSet(userA.client, {
+      id: setId,
+      user_id: userB.id,
+      workout_id: workoutId,
+      exercise_id: exerciseId,
+      exercise_order: 0,
+      exercise_name_snapshot: 'forged name',
+      set_index: 0,
+      set_type: 'normal',
+      superset_group: null,
+      weight_kg: '100',
+      reps: 5,
+      rpe: '8',
+      rir: '2',
+      is_warmup: false,
+      completed_at: at,
+      rest_seconds: 120,
+      e1rm_epley_kg: '999',
+      e1rm_brzycki_kg: '999',
+      e1rm_low_confidence: true,
+      updated_at: at,
+      deleted_at: null,
+    });
+    expect(inserted.applied).toBe(true);
+    if (!inserted.applied) throw new Error('set insert failed');
+    expect(inserted.row.user_id).toBe(userA.id);
+    expect(inserted.row.exercise_name_snapshot).toBe('RLS fixture squat');
+    expect(inserted.row.e1rm_epley_kg).toBe('116.6667');
+    expect(inserted.row.e1rm_brzycki_kg).toBe('112.5000');
+    expect(inserted.row.e1rm_low_confidence).toBe(false);
+    expect(await listWorkoutSets(userB.client, workoutId)).toEqual([]);
+
+    const unrelated = await upsertWorkoutSet(userA.client, {
+      ...inserted.row,
+      rpe: '9',
+      e1rm_brzycki_kg: '999',
+      updated_at: '2026-08-22T10:01:00.000Z',
+    });
+    expect(unrelated.applied).toBe(true);
+    if (!unrelated.applied) throw new Error('set update failed');
+    expect(unrelated.row.e1rm_brzycki_kg).toBe('112.5000');
+
+    const sourceChanged = await upsertWorkoutSet(userA.client, {
+      ...unrelated.row,
+      reps: 6,
+      updated_at: '2026-08-22T10:02:00.000Z',
+    });
+    expect(sourceChanged.applied).toBe(true);
+    if (!sourceChanged.applied) throw new Error('set source update failed');
+    expect(sourceChanged.row.e1rm_brzycki_kg).toBe('116.1290');
+
+    const deletedAt = '2026-08-22T10:03:00.000Z';
+    await upsertWorkout(userA.client, {
+      ...workout,
+      deleted_at: deletedAt,
+      updated_at: deletedAt,
+    });
+    const staleRoundTrip = await upsertWorkout(userA.client, {
+      ...workout,
+      deleted_at: null,
+      updated_at: at,
+    });
+    expect(staleRoundTrip.applied).toBe(false);
+
+    const { data: rawWorkout, error: workoutError } = await service
+      .from('workouts')
+      .select('deleted_at')
+      .eq('id', workoutId)
+      .single();
+    if (workoutError) throw workoutError;
+    const { data: rawSet, error: setError } = await service
+      .from('workout_sets')
+      .select('deleted_at')
+      .eq('id', setId)
+      .single();
+    if (setError) throw setError;
+    expect(rawWorkout.deleted_at).toBeTruthy();
+    expect(rawSet.deleted_at).toBeTruthy();
+  });
+
+  it('isolates goals and habits and keeps a tombstoned goal deleted', async () => {
+    const goalId = randomUUID();
+    const habitId = randomUUID();
+    const at = '2026-08-22T11:00:00.000Z';
+    const goal = await upsertGoal(userA.client, {
+      id: goalId,
+      user_id: userA.id,
+      title: 'Private long-term chapter',
+      description: null,
+      kind: 'chapter',
+      status: 'active',
+      starts_on: '2026-08-22',
+      target_date: null,
+      completed_at: null,
+      origin: 'user',
+      updated_at: at,
+      deleted_at: null,
+    });
+    expect(goal.applied).toBe(true);
+    const habit = await upsertHabit(userA.client, {
+      id: habitId,
+      user_id: userB.id,
+      goal_id: goalId,
+      title: 'Private daily action',
+      notes: null,
+      frequency: 'daily',
+      target_per_period: 1,
+      active: true,
+      origin: 'user',
+      updated_at: at,
+      deleted_at: null,
+    });
+    expect(habit.applied).toBe(true);
+    if (!habit.applied) throw new Error('habit insert failed');
+    expect(habit.row.user_id).toBe(userA.id);
+
+    expect(await listGoals(userB.client, userA.id)).toEqual([]);
+    expect(await listActiveHabits(userB.client, userA.id)).toEqual([]);
+    const { data: mutation, error: mutationError } = await userB.client
+      .from('goals')
+      .update({ title: 'Stolen', updated_at: '2026-08-22T11:01:00.000Z' })
+      .eq('id', goalId)
+      .select('id');
+    if (mutationError) throw mutationError;
+    expect(mutation).toEqual([]);
+
+    const deletedAt = '2026-08-22T11:02:00.000Z';
+    await upsertGoal(userA.client, {
+      ...(goal.applied ? goal.row : null),
+      id: goalId,
+      user_id: userA.id,
+      title: 'Private long-term chapter',
+      description: null,
+      kind: 'chapter',
+      status: 'active',
+      starts_on: '2026-08-22',
+      target_date: null,
+      completed_at: null,
+      origin: 'user',
+      updated_at: deletedAt,
+      deleted_at: deletedAt,
+    });
+    const stale = await upsertGoal(userA.client, {
+      id: goalId,
+      user_id: userA.id,
+      title: 'Stale resurrection',
+      description: null,
+      kind: 'chapter',
+      status: 'active',
+      starts_on: '2026-08-22',
+      target_date: null,
+      completed_at: null,
+      origin: 'user',
+      updated_at: at,
+      deleted_at: null,
+    });
+    expect(stale.applied).toBe(false);
+    expect(await listGoals(userA.client, userA.id)).toEqual([]);
+    const { data: rawGoal, error: rawGoalError } = await service
+      .from('goals')
+      .select('deleted_at')
+      .eq('id', goalId)
+      .single();
+    if (rawGoalError) throw rawGoalError;
+    const { data: rawHabit, error: rawHabitError } = await service
+      .from('habits')
+      .select('deleted_at')
+      .eq('id', habitId)
+      .single();
+    if (rawHabitError) throw rawHabitError;
+    expect(rawGoal.deleted_at).toBeTruthy();
+    expect(rawHabit.deleted_at).toBeTruthy();
+  });
+
+  it('awards a confirmed event once and traces the achievement to its source', async () => {
+    const taskId = randomUUID();
+    const eventId = randomUUID();
+    const duplicateId = randomUUID();
+    const at = '2026-08-22T12:00:00.000Z';
+    await upsertTask(userA.client, {
+      id: taskId,
+      user_id: userA.id,
+      title: 'Confirmed source action',
+      notes: null,
+      scheduled_for: '2026-08-22',
+      due_at: null,
+      completed_at: at,
+      sort_order: 0,
+      origin: 'user',
+      updated_at: at,
+      deleted_at: null,
+    });
+    const eventKey = `task_completed:tasks:${taskId}`;
+    const first = await recordCompanionEvent(userA.client, {
+      id: eventId,
+      user_id: userA.id,
+      event_key: eventKey,
+      event_type: 'task_completed',
+      source_table: 'tasks',
+      source_id: taskId,
+      logical_date: '2099-01-01',
+    });
+    const duplicate = await recordCompanionEvent(userA.client, {
+      id: duplicateId,
+      user_id: userA.id,
+      event_key: eventKey,
+      event_type: 'task_completed',
+      source_table: 'tasks',
+      source_id: taskId,
+      logical_date: '2099-01-01',
+    });
+    expect(first.inserted).toBe(true);
+    expect(first.row.points).toBe(10);
+    expect(first.row.logical_date).toBe('2026-08-22');
+    expect(duplicate.inserted).toBe(false);
+    expect(duplicate.row.id).toBe(first.row.id);
+    expect(await listCompanionEvents(userA.client, userA.id)).toHaveLength(1);
+    expect(await listCompanionEvents(userB.client, userA.id)).toEqual([]);
+    expect((await getCompanionState(userA.client, userA.id))?.total_points).toBe(10);
+    expect(await getCompanionState(userB.client, userA.id)).toBeNull();
+
+    const earned = await listUserAchievements(userA.client, userA.id);
+    expect(earned).toHaveLength(1);
+    expect(earned[0]?.source_event_id).toBe(first.row.id);
+
+    const { error: unsafeError } = await userA.client.from('companion_events').insert({
+      id: randomUUID(),
+      user_id: userA.id,
+      event_key: `weight_loss:weight_logs:${randomUUID()}`,
+      event_type: 'weight_loss',
+      source_table: 'weight_logs',
+      source_id: randomUUID(),
+      logical_date: '2026-08-22',
+      points: 9999,
+    } as never);
+    expect(unsafeError).toBeTruthy();
+    expect((await getCompanionState(userA.client, userA.id))?.total_points).toBe(10);
   });
 });
 

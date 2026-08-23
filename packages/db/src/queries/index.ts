@@ -1,11 +1,24 @@
 export type { DbClient } from './client';
-export { DbQueryError, isMissingRpcError, isUnauthorizedError, isUniqueViolation } from './errors';
 export {
-  clampUpdatedAt,
-  clampUpdatedAtIso,
-  incomingWins,
-  omitServerCursor,
-} from './lww';
+  DbQueryError,
+  isMissingRpcError,
+  isUnauthorizedError,
+  isUniqueViolation,
+} from './errors';
+export { clampUpdatedAt, clampUpdatedAtIso, incomingWins, omitServerCursor } from './lww';
+export {
+  getDailyLoopPreferences,
+  getDailyPlan,
+  listFocusSessions,
+  listScriptureByTag,
+  upsertDailyLoopPreferences,
+  upsertDailyPlan,
+  upsertFocusSession,
+  type DailyLoopPreferenceWrite,
+  type DailyLoopUpsertResult,
+  type DailyPlanWrite,
+  type FocusSessionWrite,
+} from './daily-loop';
 export {
   insertFoodEntry,
   listFoodEntriesByLogicalDate,
@@ -34,8 +47,53 @@ export {
   tombstoneUserFood,
 } from './foods';
 export type { FoodSearchHit } from './foods';
-export { getProfile, updateProfile } from './profiles';
-export { insertWeightLog, listWeightLogsByLogicalDate, tombstoneWeightLog } from './weight-logs';
+export {
+  getCompanionState,
+  listAchievementDefinitions,
+  listActiveHabits,
+  listCompanionEvents,
+  listCosmeticDefinitions,
+  listCosmeticUnlocks,
+  listEvolutionStages,
+  listGoalMilestones,
+  listGoals,
+  listHabitCompletions,
+  listUserAchievements,
+  recordCompanionEvent,
+  selectCompanionCosmetic,
+  tombstoneGoal,
+  tombstoneGoalMilestone,
+  tombstoneHabit,
+  tombstoneHabitCompletion,
+  upsertGoal,
+  upsertGoalMilestone,
+  upsertHabit,
+  upsertHabitCompletion,
+  type CompanionEventWrite,
+  type GoalMilestoneWrite,
+  type GoalWrite,
+  type HabitCompletionWrite,
+  type HabitWrite,
+  type JourneyUpsertResult,
+} from './journey';
+export { getProfile, recomputeLogicalDates, updateProfile } from './profiles';
+export type { LogicalDateRecomputeResult } from './profiles';
+export {
+  insertWeightLog,
+  listWeightLogsByLogicalDate,
+  listWeightLogsSince,
+  tombstoneWeightLog,
+  upsertWeightLog,
+} from './weight-logs';
+export type { UpsertWeightLogResult, WeightLogWrite } from './weight-logs';
+export {
+  appendExpenditureEstimate,
+  getLatestExpenditureEstimate,
+  insertNutritionTargets,
+  listEffectiveNutritionTargets,
+  listExpenditureEstimates,
+} from './guidance';
+export type { ExpenditureEstimateWrite, NutritionTargetWrite } from './guidance';
 export {
   listMealTemplates,
   mealTemplateItemSchema,
@@ -47,8 +105,73 @@ export type { MealTemplateWrite, UpsertMealTemplateResult } from './meal-templat
 export {
   insertWorkout,
   listWorkoutSets,
+  listWorkoutHistory,
   listWorkoutsByLogicalDate,
   tombstoneWorkout,
   tombstoneWorkoutSet,
+  upsertWorkout,
+  upsertWorkoutSet,
 } from './workouts';
-export { listAgentRuns, markAgentRunScrubbed } from './agent';
+export {
+  getExercise,
+  listExercises,
+  listWorkoutPlanExercises,
+  listWorkoutPlans,
+  tombstoneUserExercise,
+  tombstoneWorkoutPlan,
+  tombstoneWorkoutPlanExercise,
+  upsertUserExercise,
+  upsertWorkoutPlan,
+  upsertWorkoutPlanExercise,
+  type TrainingUpsertResult,
+  type UserExerciseWrite,
+  type WorkoutPlanExerciseWrite,
+  type WorkoutPlanWrite,
+} from './training-plans';
+export type {
+  UpsertWorkoutResult,
+  UpsertWorkoutSetResult,
+  WorkoutSetWrite,
+  WorkoutWrite,
+} from './workouts';
+export {
+  getAgentSpendUsd,
+  insertAgentRunTelemetry,
+  listAgentRuns,
+  markAgentRunScrubbed,
+} from './agent';
+export type { AgentRunTelemetryWrite } from './agent';
+export {
+  listAgentMemories,
+  listCocoConversations,
+  listCocoMessages,
+  tombstoneAgentMemory,
+  tombstoneCocoConversation,
+  tombstoneCocoMessage,
+  upsertAgentMemory,
+  upsertCocoConversation,
+  upsertCocoMessage,
+} from './coco';
+export type {
+  AgentMemoryWrite,
+  CocoConversationWrite,
+  CocoMessageWrite,
+  CocoUpsertResult,
+} from './coco';
+export {
+  listActiveRoutines,
+  listRoutineCompletionsForDate,
+  listTasksForDate,
+  tombstoneRoutine,
+  tombstoneRoutineCompletion,
+  tombstoneTask,
+  upsertRoutine,
+  upsertRoutineCompletion,
+  upsertTask,
+} from './planning';
+export type {
+  PlanningUpsertResult,
+  RoutineCompletionWrite,
+  RoutineWrite,
+  TaskWrite,
+} from './planning';

@@ -1,6 +1,11 @@
 import type { Food, FoodInsert, Serving, ServingInsert } from '../database';
 import type { DbClient } from './client';
-import { DbQueryError, isMissingRpcError, isUniqueViolation, throwIfError } from './errors';
+import {
+  DbQueryError,
+  isMissingRpcError,
+  isUniqueViolation,
+  throwIfError,
+} from './errors';
 import { clampUpdatedAtIso, omitServerCursor } from './lww';
 
 const CANONICAL_SOURCES = ['ph_core', 'usda_fdc', 'off', 'llm'] as const;
@@ -36,7 +41,6 @@ export async function insertUserFood(
   row: Omit<FoodInsert, 'server_updated_at' | 'created_at' | 'source'> & {
     source?: FoodInsert['source'];
     created_at?: string;
-    server_updated_at?: string;
   },
 ): Promise<Food> {
   const payload = omitServerCursor({
@@ -54,11 +58,12 @@ export async function tombstoneUserFood(
   client: DbClient,
   params: { id: string; updatedAt: string },
 ): Promise<void> {
+  const updatedAt = clampUpdatedAtIso(params.updatedAt);
   const { data, error } = await client
     .from('foods')
     .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: clampUpdatedAtIso(params.updatedAt),
+      deleted_at: updatedAt,
+      updated_at: updatedAt,
     })
     .eq('id', params.id)
     .eq('source', 'user')
@@ -80,7 +85,10 @@ export async function listServings(client: DbClient, foodId: string): Promise<Se
   return data ?? [];
 }
 
-export async function listFoodsBySource(client: DbClient, source: string): Promise<Food[]> {
+export async function listFoodsBySource(
+  client: DbClient,
+  source: string,
+): Promise<Food[]> {
   const { data, error } = await client
     .from('foods')
     .select('*')
@@ -113,7 +121,6 @@ export async function insertCanonicalFood(
     source: CanonicalSource;
     source_id: string;
     created_at?: string;
-    server_updated_at?: string;
   },
 ): Promise<Food> {
   if (!isCanonicalSource(row.source)) {
@@ -135,7 +142,6 @@ export async function insertServings(
   rows: Array<
     Omit<ServingInsert, 'server_updated_at' | 'created_at'> & {
       created_at?: string;
-      server_updated_at?: string;
     }
   >,
 ): Promise<Serving[]> {
@@ -183,7 +189,10 @@ export async function getFoodsByIds(client: DbClient, ids: string[]): Promise<Fo
   });
 }
 
-export async function getFoodsByBarcode(client: DbClient, barcode: string): Promise<Food[]> {
+export async function getFoodsByBarcode(
+  client: DbClient,
+  barcode: string,
+): Promise<Food[]> {
   const code = barcode.trim();
   if (!code) return [];
   const { data, error } = await client
@@ -201,7 +210,10 @@ export async function listServingsByFoodIds(
   foodIds: string[],
 ): Promise<Map<string, Serving[]>> {
   const rows = await mapChunks([...new Set(foodIds.filter(Boolean))], async (chunk) => {
-    const { data, error } = await client.from('servings').select('*').in('food_id', chunk);
+    const { data, error } = await client
+      .from('servings')
+      .select('*')
+      .in('food_id', chunk);
     throwIfError(error);
     return data ?? [];
   });
@@ -259,7 +271,10 @@ async function searchFoodsFallback(
   for (const food of foods) {
     const aliasText = (aliases.get(food.id) ?? []).join(' ').toLowerCase();
     const haystack = `${nameHaystack(food)} ${aliasText}`;
-    if (!haystack.includes(q) && !q.split(' ').every((token) => haystack.includes(token))) {
+    if (
+      !haystack.includes(q) &&
+      !q.split(' ').every((token) => haystack.includes(token))
+    ) {
       continue;
     }
     hits.push({ food_id: food.id, similarity: haystack.includes(q) ? 1 : 0.5 });

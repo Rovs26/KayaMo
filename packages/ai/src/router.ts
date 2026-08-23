@@ -50,7 +50,7 @@ function envModel(tier: AiTier): string | undefined {
 async function liveGenerateObject<S extends z.ZodType>(
   args: GenerateObjectArgs<S>,
 ): Promise<{ object: unknown }> {
-  const apiKey = process.env.AI_PROVIDER_API_KEY?.trim();
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   const modelId = envModel(args.tier) ?? envModel('small');
   if (!apiKey || !modelId) {
     throw new AiConfigError('OCR is not configured. Fill the label by hand.');
@@ -67,7 +67,7 @@ async function liveGenerateObject<S extends z.ZodType>(
     providerOptions?: { openai?: { reasoningEffort?: 'none' | 'low' | 'medium' } };
   }) => Promise<{ object: unknown }>;
   return generate({
-    model: openai(modelId),
+    model: openai.responses(modelId),
     schema: args.schema,
     system: args.system,
     messages: args.messages,

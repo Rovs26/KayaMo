@@ -10,7 +10,6 @@ export type FoodEntryWrite = Omit<
   id: string;
   logical_date?: string;
   created_at?: string;
-  server_updated_at?: string;
 };
 
 function toInsert(row: FoodEntryWrite): FoodEntryInsert {
@@ -51,7 +50,10 @@ export async function listFoodEntriesSince(
   return data ?? [];
 }
 
-export async function insertFoodEntry(client: DbClient, row: FoodEntryWrite): Promise<FoodEntry> {
+export async function insertFoodEntry(
+  client: DbClient,
+  row: FoodEntryWrite,
+): Promise<FoodEntry> {
   const { data, error } = await client
     .from('food_entries')
     .insert(toInsert(row))
@@ -64,9 +66,26 @@ export async function insertFoodEntry(client: DbClient, row: FoodEntryWrite): Pr
 
 export type UpsertResult =
   | { applied: true; reason: 'inserted' | 'updated'; row: FoodEntry }
-  | { applied: false; reason: 'stale_or_tombstoned' };
+  | { applied: false; reason: 'stale_or_tombstoned'; row: FoodEntry | null };
 
-export async function upsertFoodEntry(client: DbClient, row: FoodEntryWrite): Promise<UpsertResult> {
+async function getFoodEntryForSync(
+  client: DbClient,
+  params: { id: string; userId: string },
+): Promise<FoodEntry | null> {
+  const { data, error } = await client
+    .from('food_entries')
+    .select('*')
+    .eq('id', params.id)
+    .eq('user_id', params.userId)
+    .maybeSingle();
+  throwIfError(error);
+  return data;
+}
+
+export async function upsertFoodEntry(
+  client: DbClient,
+  row: FoodEntryWrite,
+): Promise<UpsertResult> {
   const payload = toInsert(row);
   const { data: updated, error: updateError } = await client
     .from('food_entries')
@@ -88,24 +107,38 @@ export async function upsertFoodEntry(client: DbClient, row: FoodEntryWrite): Pr
     .select('*')
     .maybeSingle();
   if (insertError?.code === '23505') {
-    return { applied: false, reason: 'stale_or_tombstoned' };
+    const existing = await getFoodEntryForSync(client, {
+      id: row.id,
+      userId: row.user_id,
+    });
+    if (!existing) throwIfError(insertError);
+    return {
+      applied: false,
+      reason: 'stale_or_tombstoned',
+      row: existing,
+    };
   }
   throwIfError(insertError);
   if (inserted) {
     return { applied: true, reason: 'inserted', row: inserted };
   }
-  return { applied: false, reason: 'stale_or_tombstoned' };
+  return {
+    applied: false,
+    reason: 'stale_or_tombstoned',
+    row: await getFoodEntryForSync(client, { id: row.id, userId: row.user_id }),
+  };
 }
 
 export async function tombstoneFoodEntry(
   client: DbClient,
   params: { id: string; userId: string; updatedAt: string },
 ): Promise<void> {
+  const updatedAt = clampUpdatedAtIso(params.updatedAt);
   const { data, error } = await client
     .from('food_entries')
     .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: clampUpdatedAtIso(params.updatedAt),
+      deleted_at: updatedAt,
+      updated_at: updatedAt,
     })
     .eq('id', params.id)
     .eq('user_id', params.userId)

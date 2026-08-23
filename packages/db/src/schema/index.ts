@@ -1,7 +1,12 @@
+export { agentMemory, agentRuns } from './agent';
+export { cocoConversations, cocoMessages } from './coco';
 export {
-  agentMemory,
-  agentRuns,
-} from './agent';
+  dailyLoopPreferences,
+  dailyPlans,
+  focusSessions,
+  pushSubscriptions,
+  scripturePassages,
+} from './daily-loop';
 export {
   FOOD_SOURCES,
   MEAL_SLOTS,
@@ -13,6 +18,17 @@ export {
   DAY_TYPES,
   WEIGHT_SOURCES,
   EXERCISE_SOURCES,
+  EXERCISE_MEDIA_TYPES,
+  WORKOUT_SET_TYPES,
+  WORKOUT_STATUSES,
+  ACHIEVEMENT_METRICS,
+  COMPANION_EVENT_TYPES,
+  GOAL_KINDS,
+  GOAL_STATUSES,
+  HABIT_FREQUENCIES,
+  TASK_ORIGINS,
+  DAILY_ACTION_KINDS,
+  FOCUS_SESSION_STATUSES,
 } from './constants';
 export type {
   FoodSource,
@@ -25,6 +41,17 @@ export type {
   DayType,
   WeightSource,
   ExerciseSource,
+  ExerciseMediaType,
+  WorkoutSetType,
+  WorkoutStatus,
+  AchievementMetric,
+  CompanionEventType,
+  GoalKind,
+  GoalStatus,
+  HabitFrequency,
+  TaskOrigin,
+  DailyActionKind,
+  FocusSessionStatus,
 } from './constants';
 export {
   foodAliases,
@@ -38,5 +65,25 @@ export {
 } from './foods';
 export type { MealTemplateItem } from './foods';
 export { profiles } from './profiles';
-export { exercises, workoutSets, workouts } from './training';
+export {
+  achievementDefinitions,
+  companionEvents,
+  companionState,
+  cosmeticDefinitions,
+  cosmeticUnlocks,
+  evolutionStages,
+  goalMilestones,
+  goals,
+  habitCompletions,
+  habits,
+  userAchievements,
+} from './journey';
+export { routineCompletions, routines, tasks } from './planning';
+export {
+  exercises,
+  workoutPlanExercises,
+  workoutPlans,
+  workoutSets,
+  workouts,
+} from './training';
 export { expenditureEstimates, targets, weightLogs } from './user-metrics';

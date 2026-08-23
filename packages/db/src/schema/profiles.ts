@@ -21,8 +21,26 @@ export const profiles = pgTable(
     server_updated_at: serverUpdatedAt,
   },
   (table) => [
-    check('profiles_sex_check', sql`${table.sex} is null or ${table.sex} in (${sql.raw(sqlIn(SEXES))})`),
+    check(
+      'profiles_sex_check',
+      sql`${table.sex} is null or ${table.sex} in (${sql.raw(sqlIn(SEXES))})`,
+    ),
     check('profiles_locale_check', sql`${table.locale} in (${sql.raw(sqlIn(LOCALES))})`),
-    check('profiles_goal_check', sql`${table.goal} is null or ${table.goal} in (${sql.raw(sqlIn(GOALS))})`),
+    check(
+      'profiles_goal_check',
+      sql`${table.goal} is null or ${table.goal} in (${sql.raw(sqlIn(GOALS))})`,
+    ),
+    check(
+      'profiles_birth_year_check',
+      sql`${table.birth_year} is null or ${table.birth_year} between 1900 and 2100`,
+    ),
+    check(
+      'profiles_height_check',
+      sql`${table.height_cm} is null or ${table.height_cm} > 0`,
+    ),
+    check(
+      'profiles_activity_baseline_check',
+      sql`${table.activity_baseline} is null or ${table.activity_baseline} between 1.2 and 2`,
+    ),
   ],
 );

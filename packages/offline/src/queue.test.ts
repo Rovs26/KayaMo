@@ -24,11 +24,16 @@ describe('sync queue idempotency', () => {
   });
 
   it('replaces the queue row when the same entity is written twice', async () => {
-    const payload = { id: 'entry-1', kcal: '100', updated_at: '2026-08-16T04:00:00.000Z' };
+    const payload = {
+      id: 'entry-1',
+      kcal: '100',
+      updated_at: '2026-08-16T04:00:00.000Z',
+    };
     await enqueueUpsert('food_entries', 'entry-1', payload);
     await enqueueUpsert('food_entries', 'entry-1', { ...payload, kcal: '120' });
 
     expect(await pendingCount()).toBe(1);
+    expect(await getOfflineDb().companion_events.count()).toBe(0);
     const item = await getOfflineDb().sync_queue.get('food_entries:entry-1');
     expect(item?.payload.kcal).toBe('120');
   });
@@ -56,7 +61,8 @@ describe('sync queue idempotency', () => {
 
     const stored = await getOfflineDb().food_entries.get(entry.id);
     expect(stored?.food_name_snapshot).toBe('Kanin');
-    expect(await pendingCount()).toBe(1);
+    expect(await pendingCount()).toBe(2);
+    expect(await getOfflineDb().companion_events.count()).toBe(1);
   });
 
   it('stores a meal template in Dexie and the sync queue', async () => {
