@@ -809,8 +809,10 @@ describeWithDatabase('RLS and tombstones', () => {
     if (!inserted.applied) throw new Error('set insert failed');
     expect(inserted.row.user_id).toBe(userA.id);
     expect(inserted.row.exercise_name_snapshot).toBe('RLS fixture squat');
-    expect(inserted.row.e1rm_epley_kg).toBe('116.6667');
-    expect(inserted.row.e1rm_brzycki_kg).toBe('112.5000');
+    // PostgREST serialises numeric as a JSON number, so these arrive parsed
+    // rather than as the string Drizzle's own numeric type would give back.
+    expect(inserted.row.e1rm_epley_kg).toBe(116.6667);
+    expect(inserted.row.e1rm_brzycki_kg).toBe(112.5);
     expect(inserted.row.e1rm_low_confidence).toBe(false);
     expect(await listWorkoutSets(userB.client, workoutId)).toEqual([]);
 
@@ -822,7 +824,7 @@ describeWithDatabase('RLS and tombstones', () => {
     });
     expect(unrelated.applied).toBe(true);
     if (!unrelated.applied) throw new Error('set update failed');
-    expect(unrelated.row.e1rm_brzycki_kg).toBe('112.5000');
+    expect(unrelated.row.e1rm_brzycki_kg).toBe(112.5);
 
     const sourceChanged = await upsertWorkoutSet(userA.client, {
       ...unrelated.row,
@@ -831,7 +833,7 @@ describeWithDatabase('RLS and tombstones', () => {
     });
     expect(sourceChanged.applied).toBe(true);
     if (!sourceChanged.applied) throw new Error('set source update failed');
-    expect(sourceChanged.row.e1rm_brzycki_kg).toBe('116.1290');
+    expect(sourceChanged.row.e1rm_brzycki_kg).toBe(116.129);
 
     const deletedAt = '2026-08-22T10:03:00.000Z';
     await upsertWorkout(userA.client, {
