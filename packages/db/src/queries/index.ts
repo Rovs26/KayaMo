@@ -76,6 +76,17 @@ export {
   type HabitWrite,
   type JourneyUpsertResult,
 } from './journey';
+export {
+  upsertCompass,
+  upsertFutureSelf,
+  upsertInboxItem,
+  upsertPersonalRule,
+  type CompassWrite,
+  type FutureSelfWrite,
+  type IdentityUpsertResult,
+  type InboxItemWrite,
+  type PersonalRuleWrite,
+} from './identity';
 export { getProfile, recomputeLogicalDates, updateProfile } from './profiles';
 export type { LogicalDateRecomputeResult } from './profiles';
 export {

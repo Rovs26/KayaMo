@@ -1,6 +1,6 @@
 import { createServerSupabase } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { KayaMoApp } from './kayamo-app';
+import { AppShell } from './app-shell';
 
 export default async function AppHome() {
   const supabase = await createServerSupabase();
@@ -8,5 +8,5 @@ export default async function AppHome() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
-  return <KayaMoApp userId={user.id} email={user.email ?? 'Signed in'} />;
+  return <AppShell userId={user.id} email={user.email ?? 'Signed in'} />;
 }

@@ -1,40 +1,52 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { isLocalDevLoginEnabled } from '@/lib/local-dev-login';
 import { LoginForm } from './login-form';
+import { LoginTheme } from './login-theme';
+import { LoginFlow } from './welcome';
+import styles from './login.module.css';
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string; error?: string; setup?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string; setup?: string; account?: string }>;
 }) {
   const params = await searchParams;
+  const forceLogin = params.sent === '1' || Boolean(params.error) || params.setup === '1' || params.account === '1';
 
   return (
-    <main className="relative mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-accent" aria-hidden="true" />
-      <header className="px-4 pt-10 pb-6 pl-5">
-        <p className="font-data text-caption uppercase tracking-[0.18em] text-muted">KayaMo</p>
-        <h1 className="mt-2 font-body text-title">Log in</h1>
-        <p className="mt-2 max-w-[32ch] font-body text-muted">
-          Magic link or Google. No password to forget between sets.
-        </p>
-      </header>
-      <div className="flex-1 px-4 pl-5">
-        <LoginForm
-          sent={params.sent === '1'}
-          setup={params.setup === '1'}
-          error={params.error ?? null}
-          localDev={isLocalDevLoginEnabled()}
-        />
-      </div>
-      <p className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-5">
-        <Link
-          href="/about"
-          className="font-data text-caption uppercase tracking-[0.14em] text-muted hover:text-text"
-        >
-          About food data
-        </Link>
-      </p>
+    <main className={styles.viewport}>
+      <LoginTheme />
+      <div className={styles.atmosphere} aria-hidden="true" />
+      <LoginFlow forceLogin={forceLogin}>
+        <div className={styles.shell}>
+          <section className={styles.hero} aria-label="KayaMo">
+            <div className={styles.heroGlow} aria-hidden="true" />
+            <div className={styles.heroCopy}>
+              <p className={styles.wordmark}>KayaMo</p>
+              <h1>Pasok muna.</h1>
+              <p>Magic link or Google. No password to forget between sets.</p>
+            </div>
+            <Image
+              className={styles.coco}
+              src="/coco-seed.png"
+              alt="Coco, a hopeful seed companion"
+              width={196}
+              height={196}
+              priority
+            />
+          </section>
+          <LoginForm
+            sent={params.sent === '1'}
+            setup={params.setup === '1'}
+            error={params.error ?? null}
+            localDev={isLocalDevLoginEnabled()}
+          />
+          <p className={styles.footer}>
+            <Link href="/about">About food data</Link>
+          </p>
+        </div>
+      </LoginFlow>
     </main>
   );
 }

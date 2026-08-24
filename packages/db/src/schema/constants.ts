@@ -47,7 +47,7 @@ export type ExerciseMediaType = (typeof EXERCISE_MEDIA_TYPES)[number];
 export const GOAL_KINDS = ['goal', 'campaign', 'chapter'] as const;
 export type GoalKind = (typeof GOAL_KINDS)[number];
 
-export const GOAL_STATUSES = ['active', 'paused', 'completed'] as const;
+export const GOAL_STATUSES = ['active', 'paused', 'completed', 'released'] as const;
 export type GoalStatus = (typeof GOAL_STATUSES)[number];
 
 export const HABIT_FREQUENCIES = ['daily', 'weekly'] as const;
@@ -86,6 +86,49 @@ export const FOCUS_SESSION_STATUSES = [
   'cancelled',
 ] as const;
 export type FocusSessionStatus = (typeof FOCUS_SESSION_STATUSES)[number];
+
+export const LIFE_AREAS = [
+  'physical',
+  'mind',
+  'emotions',
+  'faith',
+  'work',
+  'relationships',
+  'money',
+  'purpose',
+] as const;
+export type LifeArea = (typeof LIFE_AREAS)[number];
+
+export const PRIVACY_LEVELS = ['private', 'standard', 'shareable'] as const;
+export type PrivacyLevel = (typeof PRIVACY_LEVELS)[number];
+
+export const RECORD_PROVENANCE = [
+  'user',
+  'device',
+  'external',
+  'mus_inference',
+  'mus_plan',
+  'estimate',
+] as const;
+export type RecordProvenance = (typeof RECORD_PROVENANCE)[number];
+
+export const INBOX_KINDS = ['note', 'obligation', 'idea', 'voice'] as const;
+export type InboxKind = (typeof INBOX_KINDS)[number];
+
+export const DAY_CAPACITIES = ['great', 'normal', 'low', 'overwhelmed', 'sick'] as const;
+export type DayCapacity = (typeof DAY_CAPACITIES)[number];
+
+export const DAY_INTENTS = [
+  'focused',
+  'calm',
+  'recovery',
+  'family',
+  'get_things_done',
+] as const;
+export type DayIntent = (typeof DAY_INTENTS)[number];
+
+export const PLAN_MODES = ['standard', 'minimum', 'rescue', 'restructure'] as const;
+export type PlanMode = (typeof PLAN_MODES)[number];
 
 export const sqlIn = (values: readonly string[]) =>
   values.map((value) => `'${value}'`).join(', ');

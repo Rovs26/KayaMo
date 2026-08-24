@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getOfflineDb, KayaMoDB, resetOfflineDb } from './db';
 import { pendingCount } from './queue';
 import {
+  clearLocalRestTimer,
   completeLocalWorkoutSet,
+  extendLocalRestTimer,
   finishLocalWorkout,
   getLocalRestTimer,
   listLocalWorkoutHistory,
@@ -112,5 +114,32 @@ describe('offline workout sessions', () => {
     expect(finished?.status).toBe('completed');
     expect(finished?.ended_at).toBeTruthy();
     expect(await getLocalRestTimer(workout.id)).toBeUndefined();
+  });
+
+  it('extends and clears a rest timer without finishing the session', async () => {
+    const workout = await startLocalWorkout({ userId: 'user-a' });
+    const started = await startLocalRestTimer({
+      workoutId: workout.id,
+      userId: 'user-a',
+      seconds: 90,
+    });
+    const extended = await extendLocalRestTimer(workout.id, 30);
+    expect(Date.parse(extended!.ends_at) - Date.parse(started.ends_at)).toBe(30_000);
+    await clearLocalRestTimer(workout.id);
+    expect(await getLocalRestTimer(workout.id)).toBeUndefined();
+  });
+
+  it('snoozes an expired rest timer from now, not from the old deadline', async () => {
+    const workout = await startLocalWorkout({ userId: 'user-a' });
+    await startLocalRestTimer({
+      workoutId: workout.id,
+      userId: 'user-a',
+      seconds: 1,
+      startedAt: new Date(Date.now() - 5_000).toISOString(),
+    });
+    const before = Date.now();
+    const snoozed = await extendLocalRestTimer(workout.id, 30);
+    expect(Date.parse(snoozed!.ends_at)).toBeGreaterThanOrEqual(before + 29_000);
+    expect(Date.parse(snoozed!.ends_at)).toBeLessThanOrEqual(before + 31_000);
   });
 });

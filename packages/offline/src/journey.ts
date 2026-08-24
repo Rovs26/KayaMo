@@ -113,7 +113,7 @@ export async function createLocalGoal(input: {
 export async function setLocalGoalStatus(input: {
   id: string;
   userId: string;
-  status: 'active' | 'paused' | 'completed';
+  status: 'active' | 'paused' | 'completed' | 'released';
   timeZone?: string;
   dayStartsAt?: string;
 }): Promise<LocalGoal | null> {
@@ -169,6 +169,24 @@ export async function createLocalGoalMilestone(input: {
     server_updated_at: at,
     deleted_at: null,
   };
+  await db.goal_milestones.put(row);
+  await enqueueUpsert('goal_milestones', row.id, milestonePayload(row));
+  void drainQueue();
+  return row;
+}
+
+export async function updateLocalGoalMilestone(input: {
+  id: string;
+  userId: string;
+  title: string;
+}): Promise<LocalGoalMilestone | null> {
+  const db = getOfflineDb();
+  const existing = await db.goal_milestones.get(input.id);
+  if (!existing || existing.user_id !== input.userId || existing.deleted_at) return null;
+  const title = input.title.trim();
+  if (!title) return existing;
+  const at = nowIso();
+  const row = { ...existing, title, updated_at: at };
   await db.goal_milestones.put(row);
   await enqueueUpsert('goal_milestones', row.id, milestonePayload(row));
   void drainQueue();
@@ -392,6 +410,11 @@ export async function listLocalHabitCompletions(
   ).filter(
     (row) => !row.deleted_at && (!logicalDate || row.logical_date === logicalDate),
   );
+}
+
+export async function listLocalCompanionPresenceDates(userId: string): Promise<string[]> {
+  const rows = await getOfflineDb().companion_events.where('user_id').equals(userId).toArray();
+  return [...new Set(rows.map((row) => row.logical_date))].sort();
 }
 
 export async function getLocalCompanionProgression(userId: string) {

@@ -13,6 +13,9 @@ coverage/
 playwright-report/
 test-results/
 
+# Design zip drops — never commit the HTML prototypes
+KayaMo mobile app design */
+
 # Capacitor native projects — generated, but commit them once you ship
 apps/mobile/ios/App/Pods/
 apps/mobile/android/.gradle/

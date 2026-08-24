@@ -32,6 +32,10 @@ export async function saveLocalDailyPlan(input: {
   recordId?: string | null;
   label?: string | null;
   completeMorning?: boolean;
+  capacity?: LocalDailyPlan['capacity'];
+  dayIntent?: LocalDailyPlan['day_intent'];
+  planMode?: LocalDailyPlan['plan_mode'];
+  tomorrowNote?: string | null;
   id?: string;
 }): Promise<LocalDailyPlan> {
   const db = getOfflineDb();
@@ -41,6 +45,10 @@ export async function saveLocalDailyPlan(input: {
     .filter((row) => !row.deleted_at)
     .first();
   const at = nowIso();
+  const tomorrow =
+    input.tomorrowNote === undefined
+      ? (existing?.tomorrow_note ?? null)
+      : input.tomorrowNote?.trim() || null;
   const row: LocalDailyPlan = {
     id: existing?.id ?? input.id ?? newId(),
     user_id: input.userId,
@@ -52,6 +60,10 @@ export async function saveLocalDailyPlan(input: {
     morning_completed_at:
       input.completeMorning === true ? at : (existing?.morning_completed_at ?? null),
     evening_completed_at: existing?.evening_completed_at ?? null,
+    capacity: input.capacity ?? existing?.capacity ?? null,
+    day_intent: input.dayIntent ?? existing?.day_intent ?? null,
+    plan_mode: input.planMode ?? existing?.plan_mode ?? null,
+    tomorrow_note: tomorrow,
     created_at: existing?.created_at ?? at,
     updated_at: at,
     server_updated_at: existing?.server_updated_at ?? at,
@@ -75,7 +87,12 @@ export async function completeLocalEveningReflection(input: {
     logicalDate: input.logicalDate,
   });
   const at = nowIso();
-  const completed = { ...plan, evening_completed_at: at, updated_at: at };
+  const completed = {
+    ...plan,
+    evening_completed_at: at,
+    updated_at: at,
+    tomorrow_note: input.reflection?.trim() || plan.tomorrow_note,
+  };
   await db.daily_plans.put(completed);
   await enqueueUpsert('daily_plans', completed.id, planPayload(completed));
   if (input.reflection?.trim()) {
@@ -212,6 +229,7 @@ export async function saveLocalDailyLoopPreferences(input: {
   quietStartsAt?: string;
   quietEndsAt?: string;
   faithEnabled?: boolean;
+  lastWeeklyResetOn?: string | null;
 }): Promise<LocalDailyLoopPreference> {
   const db = getOfflineDb();
   const existing = await db.daily_loop_preferences.get(input.userId);
@@ -224,6 +242,8 @@ export async function saveLocalDailyLoopPreferences(input: {
     quiet_starts_at: input.quietStartsAt ?? existing?.quiet_starts_at ?? '22:00:00',
     quiet_ends_at: input.quietEndsAt ?? existing?.quiet_ends_at ?? '07:00:00',
     faith_enabled: input.faithEnabled ?? existing?.faith_enabled ?? false,
+    last_weekly_reset_on:
+      input.lastWeeklyResetOn ?? existing?.last_weekly_reset_on ?? null,
     created_at: existing?.created_at ?? at,
     updated_at: at, server_updated_at: existing?.server_updated_at ?? at, deleted_at: null,
   };

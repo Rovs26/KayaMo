@@ -1,6 +1,29 @@
-import { Button } from '@kayamo/ui';
 import { LOCAL_DEV_EMAIL } from '@/lib/local-dev-login';
 import { signInAsLocalDev, signInWithEmail, signInWithGoogle } from './actions';
+import styles from './login.module.css';
+
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#FFC107"
+        d="M43.6 20.5H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.6 39.6 16.3 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.5 5.8-6.6 7.5l6.3 5.3C38.9 37.3 44 31.5 44 24c0-1.3-.1-2.3-.4-3.5z"
+      />
+    </svg>
+  );
+}
 
 export function LoginForm({
   sent,
@@ -14,67 +37,62 @@ export function LoginForm({
   localDev: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className={styles.card}>
       {setup ? (
-        <p className="font-body text-body text-warning">
-          Supabase env is empty. Copy <span className="font-data">.env.example</span> to{' '}
-          <span className="font-data">.env.local</span>, run{' '}
-          <span className="font-data">npx supabase start</span>, then paste the URL and keys
-          from <span className="font-data">npx supabase status</span>.
+        <p className={styles.banner} data-kind="warn" role="status">
+          Supabase env is empty. Copy <code>.env.example</code> to <code>.env.local</code>, run{' '}
+          <code>npx supabase start</code>, then paste the URL and keys from{' '}
+          <code>npx supabase status</code>.
         </p>
       ) : null}
 
       {sent ? (
-        <p className="font-body text-body text-accent">
+        <p className={styles.banner} data-kind="ok" role="status">
           Check your inbox — or Inbucket at localhost:54324 if you are on local Supabase.
         </p>
       ) : null}
 
-      {error ? <p className="font-body text-body text-warning">{error}</p> : null}
+      {error ? (
+        <p className={styles.banner} data-kind="warn" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-      <form action={signInWithEmail} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-2">
-          <span className="font-data text-caption uppercase tracking-[0.14em] text-muted">
-            email
-          </span>
+      <form action={signInWithEmail} className={styles.stack}>
+        <label className={styles.field}>
+          <span>Email</span>
           <input
             type="email"
             name="email"
             required
             autoComplete="email"
+            inputMode="email"
             placeholder="you@example.com"
-            className="min-h-12 border-b border-line bg-transparent px-0 font-body text-body text-text outline-none placeholder:text-muted"
           />
         </label>
-        <Button type="submit" size="lg" disabled={setup}>
+        <button type="submit" className={styles.primary} disabled={setup}>
           Send magic link
-        </Button>
+        </button>
       </form>
 
-      <p className="text-center font-data text-caption uppercase tracking-[0.14em] text-muted">
-        or
-      </p>
+      <p className={styles.rule}>or</p>
 
       <form action={signInWithGoogle}>
-        <Button type="submit" variant="secondary" size="lg" disabled={setup}>
+        <button type="submit" className={styles.secondary} disabled={setup}>
+          <GoogleMark />
           Continue with Google
-        </Button>
+        </button>
       </form>
 
       {localDev && !setup ? (
-        <>
-          <p className="text-center font-data text-caption uppercase tracking-[0.14em] text-muted">
-            local only
-          </p>
+        <div className={styles.local}>
           <form action={signInAsLocalDev}>
-            <Button type="submit" variant="ghost" size="lg">
+            <button type="submit" className={styles.ghost}>
               Skip login on this machine
-            </Button>
+            </button>
           </form>
-          <p className="font-body text-caption text-muted">
-            Signs you in as {LOCAL_DEV_EMAIL}. Hidden in production.
-          </p>
-        </>
+          <p>Signs you in as {LOCAL_DEV_EMAIL}. Hidden in production.</p>
+        </div>
       ) : null}
     </div>
   );

@@ -96,6 +96,26 @@ export async function setLocalTaskCompleted(params: {
   return row;
 }
 
+export async function setLocalTaskScheduledFor(params: {
+  id: string;
+  userId: string;
+  scheduledFor: string | null;
+}): Promise<LocalTask | null> {
+  const db = getOfflineDb();
+  const existing = await db.tasks.get(params.id);
+  if (!existing || existing.user_id !== params.userId || existing.deleted_at) return null;
+  const at = nowIso();
+  const row: LocalTask = {
+    ...existing,
+    scheduled_for: params.scheduledFor,
+    updated_at: at,
+  };
+  await db.tasks.put(row);
+  await enqueueUpsert('tasks', row.id, taskPayload(row));
+  void drainQueue();
+  return row;
+}
+
 export async function tombstoneLocalTask(params: {
   id: string;
   userId: string;
@@ -117,6 +137,15 @@ export async function listLocalTasksForDate(
   const rows = await getOfflineDb().tasks.where('user_id').equals(userId).toArray();
   return rows
     .filter((row) => !row.deleted_at && row.scheduled_for === logicalDate)
+    .sort(
+      (a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at),
+    );
+}
+
+export async function listLocalOpenTasks(userId: string): Promise<LocalTask[]> {
+  const rows = await getOfflineDb().tasks.where('user_id').equals(userId).toArray();
+  return rows
+    .filter((row) => !row.deleted_at && !row.completed_at)
     .sort(
       (a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at),
     );

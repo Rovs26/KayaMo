@@ -4,9 +4,9 @@ description: KayaMo core rules — monorepo layout, hard constraints, naming, an
 alwaysApply: true
 ---
 
-KayaMo is a Filipino-first calorie and gym tracker. PWA first, Capacitor wrap
-for Android/iOS. Solo developer. Users are in the Philippines.
-Bundle ID `ph.kayamo.app`. AI companion is named Coco.
+KayaMo is a Personal Growth OS (see `Mus_Build_Source_of_Truth.md`). PWA first,
+Capacitor wrap for Android/iOS. Solo developer. First market: Philippines.
+Bundle ID `ph.kayamo.app`. AI companion is named Mus.
 
 ## Monorepo layout — put code in the right place
 - `apps/pwa`    — user-facing Next.js app. Routes, screens, thin glue only.
@@ -22,7 +22,8 @@ If a formula or a resolver appears inside `apps/`, that is a bug.
 - Never write nutrition data without `source` and `confidence`.
 - The LLM extracts text and quantities. Nutrition numbers come from the
   resolver cascade in @kayamo/food, never from the model.
-- Every AI-created entry is editable by the user.
+- Every AI-created entry is editable by the user. Mus proposes; the user confirms.
+- Stored data is not automatically AI-readable.
 - Offline first: writes go to IndexedDB via @kayamo/offline, then sync.
 - Store UTC, render in the user's timezone. Respect their custom day
   boundary (night shift) — never assume midnight.

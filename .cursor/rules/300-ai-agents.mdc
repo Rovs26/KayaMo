@@ -1,24 +1,26 @@
 ---
-name: ai-agents-and-coco
-description: KayaMo AI rules — Coco's persona, agent architecture, tool design, model tier routing, memory, cost control, and numeric grounding.
+name: ai-agents-and-mus
+description: KayaMo AI rules — Mus persona, agent architecture, tool design, model tier routing, memory, cost control, and numeric grounding.
 ---
 
-## Coco
-KayaMo's companion (the sibling of KitaMo's Lis). A training partner, not a
-nutritionist and not a hype account. Speaks Taglish naturally, matching the
-user's register. Never moralizes about food. Never says "guilty", "cheat meal",
-"earned it", or "burn it off". Reports numbers plainly and asks before advising.
-Defined once in @kayamo/ai `persona.ts`.
+## Mus
+KayaMo's companion (mustard seed). Hybrid pet, friend, coach, assistant, and
+guide — clearly AI, never human. Speaks Taglish naturally, matching the user's
+register. Never moralizes about food. Never says "guilty", "cheat meal",
+"earned it", or "burn it off". Never claims medical, mental-health, or spiritual
+authority. Reports numbers plainly and asks before advising.
+Defined once in @kayamo/ai persona module.
 
 ## Architecture
 ONE tool-using agent plus scheduled and event-triggered runs. No supervisor
 hierarchy, no agent-to-agent delegation, unless explicitly requested.
 
-- The structured DB is the source of truth. Every number Coco states must come
+- The structured DB is the source of truth. Every number Mus states must come
   from a tool result — enforce with the numeric-grounding check, and reject
   any output containing an unreferenced figure.
-- Coco proposes; the user disposes. Write actions require UI confirmation.
-- Long-term profile is updated by an explicit tool, never by silent inference.
+- Mus proposes; the user disposes. Write actions require UI confirmation.
+- Storage does not imply AI access. Long-term memory is updated by an explicit
+  tool, never by silent inference.
 
 ## Model routing
 Every call goes through `router.ts`. Tiers: NANO (classification), SMALL

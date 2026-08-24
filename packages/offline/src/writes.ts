@@ -146,6 +146,79 @@ export async function tombstoneLocalFoodEntries(params: {
   }
 }
 
+export async function reviseLocalFoodEntry(input: {
+  id: string;
+  userId: string;
+  quantity: string;
+  grams: string;
+  kcal: string;
+  protein_g: string;
+  carbs_g: string;
+  fat_g: string;
+  fiber_g: string;
+  sugar_g: string;
+  sodium_mg: string;
+  servingId?: string | null;
+  servingLabel?: string | null;
+}): Promise<LocalFoodEntry | null> {
+  requireNumeric('quantity', input.quantity, { positive: true });
+  requireNumeric('grams', input.grams, { positive: true });
+  for (const [name, value] of Object.entries({
+    kcal: input.kcal,
+    protein_g: input.protein_g,
+    carbs_g: input.carbs_g,
+    fat_g: input.fat_g,
+    fiber_g: input.fiber_g,
+    sugar_g: input.sugar_g,
+    sodium_mg: input.sodium_mg,
+  })) {
+    requireNumeric(name, value);
+  }
+  const db = getOfflineDb();
+  const existing = await db.food_entries.get(input.id);
+  if (!existing || existing.user_id !== input.userId || existing.deleted_at) return null;
+  const updatedAt = nowIso();
+  const next: LocalFoodEntry = {
+    ...existing,
+    quantity: input.quantity,
+    grams: input.grams,
+    kcal: input.kcal,
+    protein_g: input.protein_g,
+    carbs_g: input.carbs_g,
+    fat_g: input.fat_g,
+    fiber_g: input.fiber_g,
+    sugar_g: input.sugar_g,
+    sodium_mg: input.sodium_mg,
+    serving_id: input.servingId === undefined ? existing.serving_id : input.servingId,
+    serving_label_snapshot:
+      input.servingLabel === undefined ? existing.serving_label_snapshot : input.servingLabel,
+    updated_at: updatedAt,
+  };
+  await db.food_entries.put(next);
+  await enqueueUpsert('food_entries', next.id, toFoodEntryPayload(next));
+  void drainQueue();
+  return next;
+}
+
+export async function restoreLocalFoodEntry(params: {
+  id: string;
+  userId: string;
+}): Promise<LocalFoodEntry | null> {
+  const db = getOfflineDb();
+  const existing = await db.food_entries.get(params.id);
+  if (!existing || existing.user_id !== params.userId) return null;
+  const updatedAt = nowIso();
+  const next: LocalFoodEntry = {
+    ...existing,
+    deleted_at: null,
+    updated_at: updatedAt,
+  };
+  await db.food_entries.put(next);
+  await enqueueUpsert('food_entries', next.id, toFoodEntryPayload(next));
+  void drainQueue();
+  return next;
+}
+
 export async function tombstoneLocalFoodEntry(params: {
   id: string;
   userId: string;

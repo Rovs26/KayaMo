@@ -18,12 +18,16 @@ export type {
   LocalFoodEntry,
   LocalFocusSession,
   LocalEvolutionStage,
+  LocalCompass,
+  LocalFutureSelf,
   LocalGoal,
   LocalGoalMilestone,
+  LocalInboxItem,
   LocalGuidanceSnapshot,
   LocalHabit,
   LocalHabitCompletion,
   LocalMealTemplate,
+  LocalPersonalRule,
   LocalJournalEntry,
   LocalRoutine,
   LocalRoutineCompletion,
@@ -86,11 +90,13 @@ export {
   createLocalTask,
   listLocalRoutineCompletions,
   listLocalRoutines,
+  listLocalOpenTasks,
   listLocalTasksForDate,
   mergeRemoteRoutineCompletions,
   mergeRemoteRoutines,
   mergeRemoteTasks,
   setLocalTaskCompleted,
+  setLocalTaskScheduledFor,
   tombstoneLocalRoutine,
   tombstoneLocalRoutineCompletion,
   tombstoneLocalTask,
@@ -103,6 +109,7 @@ export {
   createLocalGoalMilestone,
   createLocalHabit,
   getLocalCompanionProgression,
+  listLocalCompanionPresenceDates,
   listLocalGoalMilestones,
   listLocalGoals,
   listLocalHabitCompletions,
@@ -114,7 +121,24 @@ export {
   mergeRemoteHabits,
   setLocalGoalStatus,
   tombstoneLocalGoal,
+  updateLocalGoalMilestone,
 } from './journey';
+export {
+  createLocalInboxItem,
+  createLocalPersonalRule,
+  getLocalCompass,
+  getLocalFutureSelf,
+  listLocalInboxItems,
+  listLocalPersonalRules,
+  processLocalInboxItem,
+  mergeRemoteCompasses,
+  mergeRemoteFutureSelves,
+  mergeRemoteInboxItems,
+  mergeRemotePersonalRules,
+  saveLocalCompass,
+  saveLocalFutureSelf,
+  tombstoneLocalInboxItem,
+} from './identity';
 export {
   cacheFood,
   cacheFoodWithServings,
@@ -129,7 +153,7 @@ export {
   useLiveMealTemplates,
   useSyncStatus,
 } from './hooks';
-export { localHourFromInstant, logicalDateFromInstant } from './logical-date';
+export { instantOnLogicalDate, localHourFromInstant, logicalDateFromInstant } from './logical-date';
 export { enqueueUpsert, pendingCount } from './queue';
 export { getSyncStatusSnapshot, startSync, type SyncDeps, type SyncStatus } from './sync';
 export {
@@ -140,6 +164,8 @@ export {
   logFoodEntries,
   logFoodEntry,
   logWeight,
+  restoreLocalFoodEntry,
+  reviseLocalFoodEntry,
   logWorkout,
   mergeRemoteFoodEntries,
   mergeRemoteMealTemplates,
@@ -153,7 +179,9 @@ export {
   type LogFoodEntryInput,
 } from './writes';
 export {
+  clearLocalRestTimer,
   completeLocalWorkoutSet,
+  extendLocalRestTimer,
   finishLocalWorkout,
   getLocalRestTimer,
   listLocalWorkoutHistory,

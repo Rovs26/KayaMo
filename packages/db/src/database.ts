@@ -17,6 +17,7 @@ import type {
   recipes,
   servings,
 } from './schema/foods';
+import type { compasses, futureSelves, inboxItems, personalRules } from './schema/identity';
 import type { profiles } from './schema/profiles';
 import type {
   achievementDefinitions,
@@ -55,6 +56,10 @@ export type Database = {
   public: {
     Tables: {
       profiles: TableDef<typeof profiles>;
+      future_selves: TableDef<typeof futureSelves>;
+      compasses: TableDef<typeof compasses>;
+      inbox_items: TableDef<typeof inboxItems>;
+      personal_rules: TableDef<typeof personalRules>;
       foods: TableDef<typeof foods>;
       servings: TableDef<typeof servings>;
       food_aliases: TableDef<typeof foodAliases>;
@@ -130,6 +135,14 @@ export type FoodInsert = Database['public']['Tables']['foods']['Insert'];
 export type FoodEntry = Database['public']['Tables']['food_entries']['Row'];
 export type FoodEntryInsert = Database['public']['Tables']['food_entries']['Insert'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type FutureSelf = Database['public']['Tables']['future_selves']['Row'];
+export type FutureSelfInsert = Database['public']['Tables']['future_selves']['Insert'];
+export type Compass = Database['public']['Tables']['compasses']['Row'];
+export type CompassInsert = Database['public']['Tables']['compasses']['Insert'];
+export type InboxItem = Database['public']['Tables']['inbox_items']['Row'];
+export type InboxItemInsert = Database['public']['Tables']['inbox_items']['Insert'];
+export type PersonalRule = Database['public']['Tables']['personal_rules']['Row'];
+export type PersonalRuleInsert = Database['public']['Tables']['personal_rules']['Insert'];
 export type WeightLog = Database['public']['Tables']['weight_logs']['Row'];
 export type WeightLogInsert = Database['public']['Tables']['weight_logs']['Insert'];
 export type ExpenditureEstimate =

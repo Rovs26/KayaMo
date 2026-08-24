@@ -13,7 +13,14 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
-import { DAILY_ACTION_KINDS, FOCUS_SESSION_STATUSES, sqlIn } from './constants';
+import {
+  DAILY_ACTION_KINDS,
+  DAY_CAPACITIES,
+  DAY_INTENTS,
+  FOCUS_SESSION_STATUSES,
+  PLAN_MODES,
+  sqlIn,
+} from './constants';
 
 export const dailyPlans = pgTable(
   'daily_plans',
@@ -32,6 +39,10 @@ export const dailyPlans = pgTable(
       withTimezone: true,
       mode: 'string',
     }),
+    capacity: text('capacity'),
+    day_intent: text('day_intent'),
+    plan_mode: text('plan_mode'),
+    tomorrow_note: text('tomorrow_note'),
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
@@ -52,6 +63,22 @@ export const dailyPlans = pgTable(
       sql`(${table.selected_action_kind} is null and ${table.selected_record_id} is null and ${table.selected_label_snapshot} is null)
         or (${table.selected_action_kind} = 'custom' and ${table.selected_record_id} is null and char_length(trim(${table.selected_label_snapshot})) between 1 and 160)
         or (${table.selected_action_kind} in ('task', 'routine') and ${table.selected_record_id} is not null and char_length(trim(${table.selected_label_snapshot})) between 1 and 160)`,
+    ),
+    check(
+      'daily_plans_capacity_check',
+      sql`${table.capacity} is null or ${table.capacity} in (${sql.raw(sqlIn(DAY_CAPACITIES))})`,
+    ),
+    check(
+      'daily_plans_intent_check',
+      sql`${table.day_intent} is null or ${table.day_intent} in (${sql.raw(sqlIn(DAY_INTENTS))})`,
+    ),
+    check(
+      'daily_plans_mode_check',
+      sql`${table.plan_mode} is null or ${table.plan_mode} in (${sql.raw(sqlIn(PLAN_MODES))})`,
+    ),
+    check(
+      'daily_plans_tomorrow_note_len',
+      sql`${table.tomorrow_note} is null or char_length(trim(${table.tomorrow_note})) between 1 and 500`,
     ),
   ],
 );
@@ -135,6 +162,7 @@ export const dailyLoopPreferences = pgTable(
       precision: 0,
     }).notNull().default('07:00:00'),
     faith_enabled: boolean('faith_enabled').notNull().default(false),
+    last_weekly_reset_on: date('last_weekly_reset_on', { mode: 'string' }),
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,

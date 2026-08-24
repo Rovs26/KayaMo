@@ -27,6 +27,30 @@ export function localHourFromInstant(instantIso: string, timeZone = 'Asia/Manila
   return localParts(new Date(instantIso), timeZone).hour;
 }
 
+/**
+ * An instant that still maps to `logicalDate` after the day-boundary rule.
+ * Used when the user is writing onto a selected day that is not "now".
+ */
+export function instantOnLogicalDate(
+  logicalDate: string,
+  timeZone = 'Asia/Manila',
+  dayStartsAt = '00:00:00',
+): string {
+  const [year, month, day] = logicalDate.split('-').map(Number);
+  if (!year || !month || !day) throw new Error(`Invalid logical date: ${logicalDate}`);
+  const searchStart = Date.UTC(year, month - 1, day - 2, 0, 0, 0);
+  let firstHit: string | null = null;
+  for (let hour = 0; hour < 96; hour += 1) {
+    const iso = new Date(searchStart + hour * 3_600_000).toISOString();
+    if (logicalDateFromInstant(iso, timeZone, dayStartsAt) !== logicalDate) continue;
+    firstHit ??= iso;
+    const midday = new Date(Date.parse(iso) + 12 * 3_600_000).toISOString();
+    if (logicalDateFromInstant(midday, timeZone, dayStartsAt) === logicalDate) return midday;
+  }
+  if (firstHit) return firstHit;
+  throw new Error(`Could not place an instant on ${logicalDate}`);
+}
+
 function parseDayStartsAt(value: string): [number, number, number] {
   const [h = '0', m = '0', s = '0'] = value.split(':');
   return [Number(h), Number(m), Number(s)];

@@ -12,8 +12,12 @@ import type {
   GoalWrite,
   HabitCompletionWrite,
   HabitWrite,
+  InboxItemWrite,
+  CompassWrite,
+  FutureSelfWrite,
   MealTemplateWrite,
   RoutineCompletionWrite,
+  PersonalRuleWrite,
   RoutineWrite,
   TaskWrite,
   UserExerciseWrite,
@@ -37,9 +41,13 @@ import {
   upsertFocusSession,
   upsertGoal,
   upsertGoalMilestone,
+  upsertCompass,
+  upsertFutureSelf,
   upsertHabit,
   upsertHabitCompletion,
+  upsertInboxItem,
   upsertMealTemplate,
+  upsertPersonalRule,
   upsertRoutine,
   upsertRoutineCompletion,
   upsertTask,
@@ -335,6 +343,26 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
       if (result.row) await getOfflineDb().coco_messages.put(result.row);
       return;
     }
+    case 'future_selves': {
+      const result = await upsertFutureSelf(client, item.payload as FutureSelfWrite);
+      if (result.row) await getOfflineDb().future_selves.put(result.row);
+      return;
+    }
+    case 'compasses': {
+      const result = await upsertCompass(client, item.payload as CompassWrite);
+      if (result.row) await getOfflineDb().compasses.put(result.row);
+      return;
+    }
+    case 'inbox_items': {
+      const result = await upsertInboxItem(client, item.payload as InboxItemWrite);
+      if (result.row) await getOfflineDb().inbox_items.put(result.row);
+      return;
+    }
+    case 'personal_rules': {
+      const result = await upsertPersonalRule(client, item.payload as PersonalRuleWrite);
+      if (result.row) await getOfflineDb().personal_rules.put(result.row);
+      return;
+    }
   }
 }
 
@@ -418,6 +446,10 @@ export function isSyncableTable(value: string): value is SyncableTable {
     value === 'routine_completions' ||
     value === 'agent_memory' ||
     value === 'coco_conversations' ||
-    value === 'coco_messages'
+    value === 'coco_messages' ||
+    value === 'future_selves' ||
+    value === 'compasses' ||
+    value === 'inbox_items' ||
+    value === 'personal_rules'
   );
 }

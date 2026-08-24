@@ -72,6 +72,9 @@ describe('offline daily loop', () => {
     expect(entries.map((row) => row.kind).sort()).toEqual(['gratitude', 'reflection']);
     const queue = await getOfflineDb().sync_queue.toArray();
     expect(queue.every((item) => item.table !== ('local_journal_entries' as never))).toBe(true);
+    expect((await getLocalDailyPlan('user-a', '2026-08-22'))?.tomorrow_note).toBe(
+      'I returned after a difficult day.',
+    );
   });
 
   it('does not expose Scripture until faith mode is enabled', async () => {

@@ -23,12 +23,19 @@ export {
   WORKOUT_STATUSES,
   ACHIEVEMENT_METRICS,
   COMPANION_EVENT_TYPES,
+  INBOX_KINDS,
+  LIFE_AREAS,
+  PRIVACY_LEVELS,
+  RECORD_PROVENANCE,
   GOAL_KINDS,
   GOAL_STATUSES,
   HABIT_FREQUENCIES,
   TASK_ORIGINS,
   DAILY_ACTION_KINDS,
   FOCUS_SESSION_STATUSES,
+  DAY_CAPACITIES,
+  DAY_INTENTS,
+  PLAN_MODES,
 } from './constants';
 export type {
   FoodSource,
@@ -46,12 +53,19 @@ export type {
   WorkoutStatus,
   AchievementMetric,
   CompanionEventType,
+  InboxKind,
+  LifeArea,
+  PrivacyLevel,
+  RecordProvenance,
   GoalKind,
   GoalStatus,
   HabitFrequency,
   TaskOrigin,
   DailyActionKind,
   FocusSessionStatus,
+  DayCapacity,
+  DayIntent,
+  PlanMode,
 } from './constants';
 export {
   foodAliases,
@@ -64,6 +78,7 @@ export {
   servings,
 } from './foods';
 export type { MealTemplateItem } from './foods';
+export { compasses, futureSelves, inboxItems, personalRules } from './identity';
 export { profiles } from './profiles';
 export {
   achievementDefinitions,

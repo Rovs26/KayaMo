@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localHourFromInstant, logicalDateFromInstant } from './logical-date';
+import { instantOnLogicalDate, localHourFromInstant, logicalDateFromInstant } from './logical-date';
 
 describe('logicalDateFromInstant', () => {
   it('uses the Manila calendar date at midnight start', () => {
@@ -21,5 +21,17 @@ describe('logicalDateFromInstant', () => {
 describe('localHourFromInstant', () => {
   it('reads the hour in Asia/Manila', () => {
     expect(localHourFromInstant('2026-08-16T23:00:00.000Z', 'Asia/Manila')).toBe(7);
+  });
+});
+
+describe('instantOnLogicalDate', () => {
+  it('lands back on the same Manila calendar date', () => {
+    const instant = instantOnLogicalDate('2026-08-20', 'Asia/Manila', '00:00:00');
+    expect(logicalDateFromInstant(instant, 'Asia/Manila', '00:00:00')).toBe('2026-08-20');
+  });
+
+  it('respects a night-shift day boundary', () => {
+    const instant = instantOnLogicalDate('2026-08-20', 'Asia/Manila', '05:00:00');
+    expect(logicalDateFromInstant(instant, 'Asia/Manila', '05:00:00')).toBe('2026-08-20');
   });
 });

@@ -15,15 +15,15 @@ function label(status: ReturnType<typeof useSyncStatus>): string {
   }
 }
 
-export function SyncStatusBar() {
+export function SyncStatusBar({ className }: { className?: string }) {
   const status = useSyncStatus();
   return (
-    <p
+    <span
       data-testid="sync-status"
       data-sync-kind={status.kind}
-      className="mb-3 font-data text-caption uppercase tracking-[0.14em] text-muted"
+      className={className}
     >
       {label(status)}
-    </p>
+    </span>
   );
 }

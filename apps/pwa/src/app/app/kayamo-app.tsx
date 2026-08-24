@@ -1,33 +1,28 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ArrowLeft,
   Barcode,
   BookOpenText,
-  CalendarCheck,
+  ChatCircle,
   Check,
   CheckCircle,
-  ChatCircleDots,
   Clock,
   CaretRight,
   Circle,
+  Compass,
   ForkKnife,
   GearSix,
   Heartbeat,
   House,
   MagnifyingGlass,
-  Moon,
   PaperPlaneTilt,
   Pause,
   Plus,
   PushPin,
-  Sparkle,
-  Sun,
   Target,
   Tree,
-  UserCircle,
   X,
 } from '@phosphor-icons/react';
 import type {
@@ -36,23 +31,33 @@ import type {
 import {
   COMPANION_EVENT_POINTS,
   COMPANION_EVENT_TYPES,
+  COMPANION_STAGES,
   computeWeightTrend,
   dayTypeForToday,
+  LIFE_AREA_LABELS,
+  LIFE_AREAS,
+  daysBetweenLogical,
   macroProgress,
   nutritionProgress,
   targetForDayType,
   trendChange,
+  weeklyResetDue,
   type CompanionEventType,
+  type DayCapacity,
+  type DayIntent,
+  type DayPlanCandidate,
   type GuidanceSnapshot,
   type MacroProgress,
   type NutritionProgress,
   type NutritionTargetView,
+  type PlanMode,
 } from '@kayamo/core';
 import {
   asLocale,
   asMealSlot,
   mealSlotLabel,
   orderedMealSlots,
+  shiftLogicalDate,
   type Locale,
 } from '@kayamo/food/quick-log';
 import {
@@ -61,20 +66,28 @@ import {
   getCachedGuidanceSnapshot,
   logWeight,
   createLocalAgentMemory,
+  completeLocalEveningReflection,
+  completeLocalGoalMilestone,
   completeLocalRoutine,
   createLocalCocoConversation,
   createLocalFocusSession,
-  createLocalGoal,
+  createLocalInboxItem,
   createLocalRoutine,
   createLocalTask,
   finishLocalFocusSession,
-  finishLocalWorkout,
+  getLocalCompass,
   getLocalCompanionProgression,
   getLocalDailyLoopPreferences,
   getLocalDailyPlan,
+  getLocalFutureSelf,
+  instantOnLogicalDate,
   listLocalCocoMessages,
+  listLocalCompanionPresenceDates,
   listLocalFocusSessions,
   listLocalGoals,
+  listLocalGoalMilestones,
+  listLocalInboxItems,
+  listLocalOpenTasks,
   listLocalRoutineCompletions,
   listLocalRoutines,
   listLocalScripture,
@@ -82,18 +95,25 @@ import {
   listLocalWeightLogs,
   listLocalWorkoutHistory,
   logicalDateFromInstant,
+  processLocalInboxItem,
+  saveLocalCompass,
   saveLocalDailyLoopPreferences,
   saveLocalDailyPlan,
-  saveLocalJournalEntry,
+  saveLocalFutureSelf,
   setLocalGoalStatus,
   setLocalTaskCompleted,
+  setLocalTaskScheduledFor,
   startLocalFocusSession,
-  startLocalWorkout,
   type LocalCocoMessage,
+  type LocalCompass,
   type LocalDailyLoopPreference,
   type LocalDailyPlan,
   type LocalFocusSession,
+  type LocalFoodEntry,
+  type LocalFutureSelf,
   type LocalGoal,
+  type LocalGoalMilestone,
+  type LocalInboxItem,
   type LocalRoutine,
   type LocalRoutineCompletion,
   type LocalScripturePassage,
@@ -101,16 +121,25 @@ import {
   type LocalWeightLog,
   type LocalWorkout,
   useLiveFoodEntries,
+  useLiveFoodHistory,
 } from '@kayamo/offline';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { SignOutButton } from './sign-out-button';
 import { SyncStatusBar } from './sync-status-bar';
+import { AddSheet } from './add-sheet';
+import { DayStrip, PastDayBanner, WeekBars } from './day-strip';
+import { FirstRun } from './first-run';
+import { FoodRecordSheet } from './food-record-sheet';
 import { AddProductForm } from './foods/add/add-product-form';
 import { BarcodeLookup } from './foods/barcode/barcode-lookup';
 import { FoodSearch } from './foods/search/food-search';
+import { GoalFlow } from './goal-flow';
+import { PlanDaySheet } from './plan-day-sheet';
+import { SettingsScreen } from './settings-screen';
+import { WeeklyResetSheet } from './weekly-reset-sheet';
+import { WorkoutFlow } from './workout-flow';
 import styles from './kayamo-app.module.css';
 
-type Tab = 'home' | 'today' | 'health' | 'journey';
+type Tab = 'home' | 'goals' | 'life' | 'grove' | 'mus';
 type Theme = 'system' | 'day' | 'night';
 
 /**
@@ -147,9 +176,10 @@ const DETAIL_META: Record<
 
 const TABS: Array<{ id: Tab; label: string; Icon: typeof House }> = [
   { id: 'home', label: 'Home', Icon: House },
-  { id: 'today', label: 'Today', Icon: CalendarCheck },
-  { id: 'health', label: 'Health', Icon: Heartbeat },
-  { id: 'journey', label: 'Journey', Icon: Tree },
+  { id: 'goals', label: 'Goals', Icon: Target },
+  { id: 'life', label: 'Life', Icon: Heartbeat },
+  { id: 'grove', label: 'Grove', Icon: Tree },
+  { id: 'mus', label: 'Mus', Icon: ChatCircle },
 ];
 
 function titleDate(date: Date): string {
@@ -249,13 +279,28 @@ function ActionDialog({
 export function KayaMoApp({ userId, email }: { userId: string; email: string }) {
   const [tab, setTab] = useState<Tab>('home');
   const mainRef = useRef<HTMLElement>(null);
-  const tabScrollPositions = useRef<Record<Tab, number>>({ home: 0, today: 0, health: 0, journey: 0 });
+  const tabScrollPositions = useRef<Record<Tab, number>>({
+    home: 0,
+    goals: 0,
+    life: 0,
+    grove: 0,
+    mus: 0,
+  });
   const [detailStack, setDetailStack] = useState<DetailScreen[]>([]);
-  const [chatOpen, setChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [goalOpen, setGoalOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [workoutOpen, setWorkoutOpen] = useState(false);
+  const [firstRun, setFirstRun] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('kayamo:first-run-done') !== '1';
+  });
+  const [viewDate, setViewDate] = useState<string | null>(null);
+  const [editingFood, setEditingFood] = useState<LocalFoodEntry | null>(null);
+  const [settingsField, setSettingsField] = useState<string | null>(null);
+  const [presenceDates, setPresenceDates] = useState<string[]>([]);
+  const [goalFlow, setGoalFlow] = useState<{ goalId: string | null } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [theme, setTheme] = useState<Theme>('day');
   const [themeReady, setThemeReady] = useState(false);
@@ -274,6 +319,15 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [plan, setPlan] = useState<LocalDailyPlan | null>(null);
   const [focusSessions, setFocusSessions] = useState<LocalFocusSession[]>([]);
   const [goals, setGoals] = useState<LocalGoal[]>([]);
+  const [goalMilestones, setGoalMilestones] = useState<LocalGoalMilestone[]>([]);
+  const [inboxItems, setInboxItems] = useState<LocalInboxItem[]>([]);
+  const [inboxDraft, setInboxDraft] = useState('');
+  const [futureSelf, setFutureSelf] = useState<LocalFutureSelf | null>(null);
+  const [compass, setCompass] = useState<LocalCompass | null>(null);
+  const [openTasks, setOpenTasks] = useState<LocalTask[]>([]);
+  const [yesterdayNote, setYesterdayNote] = useState<string | null>(null);
+  const [planSheet, setPlanSheet] = useState<PlanMode | null>(null);
+  const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
   const [workouts, setWorkouts] = useState<LocalWorkout[]>([]);
   const [weights, setWeights] = useState<LocalWeightLog[]>([]);
   const [preferences, setPreferences] = useState<LocalDailyLoopPreference | null>(null);
@@ -284,7 +338,6 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [taskTitle, setTaskTitle] = useState('');
   const [taskKind, setTaskKind] = useState<'task' | 'routine'>('task');
   const [planLabel, setPlanLabel] = useState('');
-  const [goalTitle, setGoalTitle] = useState('');
   const [reflection, setReflection] = useState('');
 
   // The profile owns these, so the first render uses defaults and settles once
@@ -294,10 +347,54 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const locale: Locale = asLocale(guidance?.profile.locale);
 
   const date = useMemo(() => new Date(now), [now]);
-  const logicalDate = logicalDateFromInstant(date.toISOString(), timeZone, dayStartsAt);
-  const foodEntries = useLiveFoodEntries(userId, logicalDate);
+  const todayLogical = logicalDateFromInstant(date.toISOString(), timeZone, dayStartsAt);
+  const viewLogicalDate = viewDate ?? todayLogical;
+  const foodEntries = useLiveFoodEntries(userId, viewLogicalDate);
+  const foodHistory = useLiveFoodHistory(userId);
+  const writeAt =
+    viewLogicalDate === todayLogical
+      ? undefined
+      : instantOnLogicalDate(viewLogicalDate, timeZone, dayStartsAt);
+  const logicalDate = viewLogicalDate;
   const activeFocus = focusSessions.find((session) => session.status === 'active') ?? null;
   const activeWorkout = workouts.find((workout) => workout.status === 'active') ?? null;
+  const homeGoal = goals.find((goal) => goal.status === 'active') ?? null;
+  const homeGoalMilestones = homeGoal
+    ? goalMilestones.filter((row) => row.goal_id === homeGoal.id)
+    : [];
+  const lastPresence = presenceDates.at(-1) ?? null;
+  const returningAfterDays = lastPresence ? daysBetweenLogical(lastPresence, todayLogical) : 0;
+  const resetDue = weeklyResetDue(preferences?.last_weekly_reset_on ?? null, todayLogical);
+  const planCandidates = useMemo((): DayPlanCandidate[] => {
+    const openToday = tasks.filter((task) => !task.completed_at);
+    const nextMilestone = homeGoalMilestones.find((row) => !row.completed_at);
+    const items: DayPlanCandidate[] = openToday.map((task) => ({
+      id: task.id,
+      title: task.title,
+      source: 'task',
+      sourceId: task.id,
+    }));
+    if (
+      nextMilestone &&
+      !items.some((item) => item.title.trim().toLowerCase() === nextMilestone.title.trim().toLowerCase())
+    ) {
+      items.push({
+        id: nextMilestone.id,
+        title: nextMilestone.title,
+        source: 'goal',
+        sourceId: nextMilestone.id,
+      });
+    }
+    for (const item of inboxItems) {
+      items.push({
+        id: item.id,
+        title: item.content,
+        source: 'inbox',
+        sourceId: item.id,
+      });
+    }
+    return items;
+  }, [homeGoalMilestones, inboxItems, tasks]);
   const completedRoutineIds = useMemo(
     () => new Set(routineCompletions.map((row) => row.routine_id)),
     [routineCompletions],
@@ -305,7 +402,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
 
   const refresh = useCallback(async () => {
     const weekday = new Date(`${logicalDate}T12:00:00`).getDay();
-    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress] = await Promise.all([
+    const yesterday = shiftLogicalDate(logicalDate, -1);
+    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan] = await Promise.all([
       listLocalTasksForDate(userId, logicalDate),
       listLocalRoutines(userId, weekday),
       listLocalRoutines(userId),
@@ -317,7 +415,16 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       listLocalWeightLogs(userId),
       getLocalDailyLoopPreferences(userId),
       getLocalCompanionProgression(userId),
+      listLocalCompanionPresenceDates(userId),
+      listLocalInboxItems(userId),
+      getLocalFutureSelf(userId),
+      getLocalCompass(userId),
+      listLocalOpenTasks(userId),
+      getLocalDailyPlan(userId, yesterday),
     ]);
+    const nextMilestones = (
+      await Promise.all(nextGoals.map((goal) => listLocalGoalMilestones(userId, goal.id)))
+    ).flat();
     setTasks(nextTasks);
     setRoutines(nextRoutines);
     setAllRoutines(nextAllRoutines);
@@ -325,10 +432,17 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setPlan(nextPlan);
     setFocusSessions(sessions);
     setGoals(nextGoals);
+    setGoalMilestones(nextMilestones);
     setWorkouts(nextWorkouts);
     setWeights(nextWeights);
     setPreferences(prefs);
     setProgress(nextProgress);
+    setPresenceDates(nextPresence);
+    setInboxItems(nextInbox);
+    setFutureSelf(nextSelf);
+    setCompass(nextCompass);
+    setOpenTasks(nextOpen);
+    setYesterdayNote(priorPlan?.tomorrow_note ?? null);
     setScripture(await listLocalScripture({ faithEnabled: prefs?.faith_enabled ?? false }));
   }, [logicalDate, userId]);
 
@@ -378,6 +492,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   }, [theme, themeReady]);
 
   useEffect(() => {
+    if (viewDate && viewDate === todayLogical) setViewDate(null);
+  }, [todayLogical, viewDate]);
+
+  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(null), 4200);
     return () => window.clearTimeout(timer);
@@ -417,6 +535,40 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     [weights],
   );
   const weightChange = trendChange(weightTrend);
+  const kcalByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of foodHistory) {
+      map.set(row.logical_date, (map.get(row.logical_date) ?? 0) + Number(row.kcal));
+    }
+    for (const row of foodEntries) {
+      if (foodHistory.some((item) => item.id === row.id)) continue;
+      map.set(row.logical_date, (map.get(row.logical_date) ?? 0) + Number(row.kcal));
+    }
+    return map;
+  }, [foodEntries, foodHistory]);
+  const markedDays = useMemo(() => {
+    const next = new Set<string>(kcalByDate.keys());
+    for (const row of workouts) {
+      if (row.status === 'completed') next.add(row.logical_date);
+    }
+    for (const iso of presenceDates) next.add(iso);
+    return next;
+  }, [kcalByDate, presenceDates, workouts]);
+
+  async function patchProfile(patch: Record<string, unknown>) {
+    const response = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) {
+      setNotice('Could not update the profile yet. Try again when you are online.');
+      return;
+    }
+    setSettingsField(null);
+    await loadGuidance();
+    await refresh();
+  }
 
   async function addPlanningItem(event: React.FormEvent) {
     event.preventDefault();
@@ -428,8 +580,18 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       await createLocalRoutine({ userId, title });
     }
     setTaskTitle('');
-    setAddOpen(false);
+    setTaskOpen(false);
     setNotice(`${taskKind === 'task' ? 'Task' : 'Routine'} saved on this device.`);
+    await refresh();
+  }
+
+  async function captureInbox(event: React.FormEvent) {
+    event.preventDefault();
+    const content = inboxDraft.trim();
+    if (!content) return;
+    await createLocalInboxItem({ userId, content });
+    setInboxDraft('');
+    setNotice('Saved privately. Mus cannot read this until you allow it.');
     await refresh();
   }
 
@@ -447,12 +609,95 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setPlan(row);
     setPlanLabel('');
     setPlanOpen(false);
-    setNotice('Confirmed. Coco will hold this as your next action.');
+    setNotice('Confirmed. Mus will hold this as your next action.');
+  }
+
+  async function confirmDayPlan(input: {
+    capacity: DayCapacity;
+    intent: DayIntent | null;
+    mode: PlanMode;
+    kept: DayPlanCandidate[];
+    customLabel: string | null;
+  }) {
+    const keptTaskIds = new Set<string>();
+    let firstTask: LocalTask | null = null;
+    for (const item of input.kept) {
+      if (item.source === 'inbox') {
+        const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+        keptTaskIds.add(task.id);
+        firstTask ??= task;
+        await processLocalInboxItem({ id: item.sourceId, userId });
+      } else if (item.source === 'goal') {
+        const already = tasks.find(
+          (task) =>
+            !task.completed_at && task.title.trim().toLowerCase() === item.title.trim().toLowerCase(),
+        );
+        if (already) {
+          keptTaskIds.add(already.id);
+          firstTask ??= already;
+        } else {
+          const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+          keptTaskIds.add(task.id);
+          firstTask ??= task;
+        }
+      } else if (item.source === 'task') {
+        const existing = tasks.find((task) => task.id === item.sourceId);
+        if (existing) {
+          keptTaskIds.add(existing.id);
+          firstTask ??= existing;
+        } else {
+          keptTaskIds.add(item.sourceId);
+        }
+      }
+    }
+    if (input.customLabel) {
+      const task = await createLocalTask({ userId, title: input.customLabel, scheduledFor: logicalDate });
+      keptTaskIds.add(task.id);
+      firstTask ??= task;
+    }
+    for (const task of tasks) {
+      if (task.completed_at || keptTaskIds.has(task.id) || task.scheduled_for !== logicalDate) {
+        continue;
+      }
+      await setLocalTaskScheduledFor({ id: task.id, userId, scheduledFor: null });
+    }
+    const label = firstTask?.title ?? input.customLabel ?? input.kept[0]?.title ?? null;
+    await saveLocalDailyPlan({
+      userId,
+      logicalDate,
+      actionKind: firstTask ? 'task' : label ? 'custom' : undefined,
+      recordId: firstTask?.id ?? null,
+      label,
+      completeMorning: true,
+      capacity: input.capacity,
+      dayIntent: input.intent,
+      planMode: input.mode,
+    });
+    setPlanSheet(null);
+    setNotice(
+      input.mode === 'rescue'
+        ? 'Rescued. Only what you kept is on today.'
+        : returningAfterDays >= 2
+          ? 'Welcome back. One step is enough.'
+          : 'Plan confirmed. Mus will not change it without you.',
+    );
+    await refresh();
   }
 
   async function toggleTask(task: LocalTask) {
-    await setLocalTaskCompleted({ id: task.id, userId, completed: !task.completed_at, timeZone, dayStartsAt });
-    setNotice(task.completed_at ? 'Task reopened.' : 'Done. Coco noticed the honest follow-through.');
+    const completing = !task.completed_at;
+    await setLocalTaskCompleted({ id: task.id, userId, completed: completing, timeZone, dayStartsAt });
+    if (completing) {
+      const match = goalMilestones.find(
+        (row) =>
+          !row.completed_at &&
+          row.title.trim().toLowerCase() === task.title.trim().toLowerCase(),
+      );
+      if (match) {
+        await completeLocalGoalMilestone({ id: match.id, userId, timeZone, dayStartsAt });
+      }
+    }
+    setNotice(task.completed_at ? 'Task reopened.' : 'Done. Mus noticed the honest follow-through.');
     await refresh();
   }
 
@@ -469,7 +714,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       return;
     }
     if (!label) {
-      setPlanOpen(true);
+      setPlanSheet('standard');
       return;
     }
     let currentPlan = plan;
@@ -501,22 +746,6 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     await refresh();
   }
 
-  async function addGoal(event: React.FormEvent) {
-    event.preventDefault();
-    const title = goalTitle.trim();
-    if (!title) return;
-    await createLocalGoal({ userId, title });
-    setGoalTitle('');
-    setGoalOpen(false);
-    setNotice('Goal saved after your confirmation.');
-    await refresh();
-  }
-
-  async function finishGoal(goal: LocalGoal) {
-    await setLocalGoalStatus({ id: goal.id, userId, status: goal.status === 'completed' ? 'active' : 'completed', timeZone, dayStartsAt });
-    await refresh();
-  }
-
   async function toggleFaith(enabled: boolean) {
     const next = await saveLocalDailyLoopPreferences({ userId, faithEnabled: enabled });
     setPreferences(next);
@@ -525,20 +754,18 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
 
   async function saveReflection() {
     if (!reflection.trim()) return;
-    await saveLocalJournalEntry({ userId, kind: 'reflection', content: reflection });
+    await completeLocalEveningReflection({
+      userId,
+      logicalDate,
+      reflection,
+    });
     setReflection('');
-    setNotice('Reflection saved only on this device.');
+    setNotice('Saved. Tomorrow’s plan can use this if you still want it.');
+    await refresh();
   }
 
-  async function toggleWorkout() {
-    if (activeWorkout) {
-      await finishLocalWorkout({ id: activeWorkout.id, userId });
-      setNotice('Workout completed from confirmed activity.');
-    } else {
-      await startLocalWorkout({ userId, timeZone, dayStartsAt });
-      setNotice('Workout started and saved offline.');
-    }
-    await refresh();
+  function openWorkout() {
+    setWorkoutOpen(true);
   }
 
   async function saveWeight(event: React.FormEvent) {
@@ -548,7 +775,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       setNotice('Enter a weight in kilograms.');
       return;
     }
-    await logWeight({ userId, weightKg, source: 'manual', timeZone, dayStartsAt });
+    await logWeight({ userId, weightKg, source: 'manual', timeZone, dayStartsAt, loggedAt: writeAt });
     setWeightInput('');
     setWeightOpen(false);
     setNotice('Weight saved on this device.');
@@ -623,7 +850,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             <span>Focus · timer only</span>
           </div>
           <div className={styles.focusCenter}>
-            <Image src="/coco-seed.png" alt="Coco, waiting quietly while you work" width={120} height={120} />
+            <Image src="/coco-seed.png" alt="Mus, waiting quietly while you work" width={120} height={120} />
             <h1>{activeFocus.target_label_snapshot}</h1>
             <p className={styles.focusClock} role="timer" aria-label={`${remainingClock(activeFocus.ends_at, now, activeFocus.planned_minutes * 60)} remaining`}>
               {remainingClock(activeFocus.ends_at, now, activeFocus.planned_minutes * 60)}
@@ -646,17 +873,143 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   return (
     <div className={styles.viewport}>
       <div className={styles.shell}>
-        <div className={styles.syncOnly}><SyncStatusBar /></div>
+        {firstRun ? (
+          <FirstRun
+            userId={userId}
+            logicalDate={todayLogical}
+            onDone={async () => {
+              setFirstRun(false);
+              await refresh();
+              await loadGuidance();
+            }}
+          />
+        ) : null}
+        {workoutOpen ? (
+          <WorkoutFlow
+            userId={userId}
+            timeZone={timeZone}
+            dayStartsAt={dayStartsAt}
+            now={now}
+            activeWorkout={activeWorkout}
+            onClose={() => setWorkoutOpen(false)}
+            onFinished={async () => {
+              await refresh();
+            }}
+          />
+        ) : null}
+        {goalFlow ? (
+          <GoalFlow
+            userId={userId}
+            logicalDate={todayLogical}
+            timeZone={timeZone}
+            dayStartsAt={dayStartsAt}
+            goals={goals}
+            todayTasks={tasks}
+            initialGoalId={goalFlow.goalId}
+            onClose={() => setGoalFlow(null)}
+            onChat={() => {
+              setGoalFlow(null);
+              selectTab('mus');
+            }}
+            onGoToday={() => {
+              setGoalFlow(null);
+              selectTab('home');
+            }}
+            onChanged={refresh}
+          />
+        ) : null}
+        {planSheet ? (
+          <PlanDaySheet
+            candidates={planCandidates}
+            yesterdayNote={yesterdayNote}
+            returningAfterDays={returningAfterDays}
+            initialMode={planSheet}
+            onClose={() => setPlanSheet(null)}
+            onConfirm={(input) => void confirmDayPlan(input)}
+          />
+        ) : null}
+        {weeklyResetOpen ? (
+          <WeeklyResetSheet
+            todayLogical={todayLogical}
+            inboxCount={inboxItems.length}
+            unfinishedTitles={openTasks
+              .filter((task) => task.scheduled_for !== todayLogical)
+              .map((task) => task.title)}
+            goals={goals}
+            onGoalStatus={async (id, status) => {
+              await setLocalGoalStatus({ id, userId, status, timeZone, dayStartsAt });
+              await refresh();
+            }}
+            onClose={() => setWeeklyResetOpen(false)}
+            onFinish={async () => {
+              await saveLocalDailyLoopPreferences({ userId, lastWeeklyResetOn: todayLogical });
+              setWeeklyResetOpen(false);
+              setNotice('Week closed. The grove kept every confirmed point.');
+              await refresh();
+            }}
+          />
+        ) : null}
+        {settingsOpen ? (
+          <SettingsScreen
+            email={email}
+            theme={theme}
+            onTheme={setTheme}
+            faithEnabled={preferences?.faith_enabled ?? false}
+            onFaith={(enabled) => void toggleFaith(enabled)}
+            reminderEnabled={preferences?.notifications_enabled ?? false}
+            onReminder={(enabled) => {
+              void saveLocalDailyLoopPreferences({ userId, notificationsEnabled: enabled }).then(setPreferences);
+            }}
+            musMayReadIdentity={futureSelf?.mus_may_read ?? compass?.mus_may_read ?? true}
+            onMusMayReadIdentity={(enabled) => {
+              void (async () => {
+                if (futureSelf) {
+                  await saveLocalFutureSelf({
+                    userId,
+                    statement: futureSelf.statement,
+                    musMayRead: enabled,
+                  });
+                }
+                await saveLocalCompass({ userId, musMayRead: enabled });
+                await refresh();
+              })();
+            }}
+            bodyRows={[
+              { id: 'sex', label: 'Sex', value: guidance?.profile.sex ?? 'not set' },
+              { id: 'goal', label: 'Goal', value: guidance?.profile.goal ?? 'not set' },
+              { id: 'weight', label: 'Weight', value: weights.at(-1) ? `${Number(weights.at(-1)!.weight_kg).toFixed(1)} kg` : 'not set' },
+              { id: 'targets', label: 'Targets', value: target ? `${target.kcal} kcal` : 'needs setup' },
+            ]}
+            dayRows={[
+              { id: 'timezone', label: 'Timezone', value: timeZone },
+              { id: 'day-start', label: 'Day starts', value: dayStartsAt.slice(0, 5) },
+              { id: 'locale', label: 'Language', value: locale },
+            ]}
+            onEditBody={(id) => {
+              if (id === 'weight') {
+                setWeightOpen(true);
+                return;
+              }
+              if (id === 'targets') {
+                setTargetsOpen(true);
+                return;
+              }
+              setSettingsField(id);
+            }}
+            onBack={() => setSettingsOpen(false)}
+          />
+        ) : null}
 
         <main ref={mainRef} className={styles.main} id="main-content">
-          <h1 className={styles.srOnly}>Today with Coco</h1>
+          <h1 className={styles.srOnly}>Today with Mus</h1>
           {detail ? (
             <DetailView
               detail={detail}
               userId={userId}
+              loggedAt={writeAt}
               onBack={closeDetail}
               onAddProduct={(barcode) => pushDetail({ kind: 'food-add', barcode })}
-              onDescribeInChat={() => setChatOpen(true)}
+              onDescribeInChat={() => selectTab('mus')}
               onSaved={() => {
                 setNotice('Saved to My Foods.');
                 closeDetail();
@@ -664,48 +1017,85 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             />
           ) : null}
           {!detail && tab === 'home' ? (
-            <HomeScreen
-              date={date}
-              recommended={recommended}
-              completedCount={completedCount}
-              foodCount={foodEntries.length}
-              progress={progress}
-              onPlan={() => setPlanOpen(true)}
-              onStart={() => void beginFocus()}
-              onToday={() => selectTab('today')}
-              onJourney={() => selectTab('journey')}
-              onChat={() => setChatOpen(true)}
-              onNotNow={() => {
-                setNotice('Coco will keep it quiet. Reopen it from Today whenever you are ready.');
-                selectTab('today');
-              }}
-            />
+            <>
+              <HomeScreen
+                date={date}
+                recommended={recommended}
+                completedCount={completedCount}
+                foodCount={foodEntries.length}
+                progress={progress}
+                homeGoal={homeGoal}
+                homeGoalSteps={homeGoalMilestones.filter((row) => row.completed_at).length}
+                inboxDraft={inboxDraft}
+                inboxItems={inboxItems}
+                onInboxDraft={setInboxDraft}
+                onCaptureInbox={(event) => void captureInbox(event)}
+                onPlan={() => setPlanSheet('standard')}
+                onStart={() => void beginFocus()}
+                onGrove={() => selectTab('grove')}
+                onOpenGoal={() => setGoalFlow({ goalId: homeGoal?.id ?? null })}
+                onChat={() => selectTab('mus')}
+                onBecome={() => setFirstRun(true)}
+                onWeeklyReset={() => setWeeklyResetOpen(true)}
+                futureSelf={futureSelf?.statement ?? null}
+                welcomeBack={returningAfterDays >= 2}
+                resetDue={resetDue}
+              />
+              <TodayScreen
+                embedded
+                date={date}
+                todayLogical={todayLogical}
+                viewLogicalDate={viewLogicalDate}
+                markedDays={markedDays}
+                onSelectDay={setViewDate}
+                tasks={tasks}
+                routines={routines}
+                completedRoutineIds={completedRoutineIds}
+                plan={plan}
+                sessions={focusSessions}
+                reflection={reflection}
+                onReflection={setReflection}
+                onSaveReflection={() => void saveReflection()}
+                onAdd={() => setAddOpen(true)}
+                onToggleTask={(task) => void toggleTask(task)}
+                onCompleteRoutine={(routine) => void completeRoutine(routine)}
+                onFocus={() => void beginFocus()}
+                onPlan={() => setPlanSheet('restructure')}
+                onChat={() => selectTab('mus')}
+              />
+            </>
           ) : null}
-          {!detail && tab === 'today' ? (
-            <TodayScreen
-              date={date}
+          {!detail && tab === 'goals' ? (
+            <JourneyScreen
+              mode="goals"
+              goals={goals}
               tasks={tasks}
-              routines={routines}
-              completedRoutineIds={completedRoutineIds}
-              plan={plan}
-              sessions={focusSessions}
-              reflection={reflection}
-              onReflection={setReflection}
-              onSaveReflection={() => void saveReflection()}
-              onAdd={() => setAddOpen(true)}
-              onToggleTask={(task) => void toggleTask(task)}
-              onCompleteRoutine={(routine) => void completeRoutine(routine)}
-              onFocus={() => void beginFocus()}
-              onPlan={() => setPlanOpen(true)}
-              onChat={() => setChatOpen(true)}
+              routines={allRoutines}
+              routineCompletions={routineCompletions}
+              workouts={workouts}
+              foodEntries={foodEntries}
+              progress={progress}
+              presenceDates={presenceDates}
+              todayLogical={todayLogical}
+              faithEnabled={preferences?.faith_enabled ?? false}
+              scripture={scripture}
+              onAddGoal={() => setGoalFlow({ goalId: null })}
+              onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onChat={() => selectTab('mus')}
             />
           ) : null}
-          {!detail && tab === 'health' ? (
+          {!detail && tab === 'life' ? (
             <HealthScreen
               entries={foodEntries}
               kcalProgress={kcalProgress}
               macros={macros}
               locale={locale}
+              todayLogical={todayLogical}
+              viewLogicalDate={viewLogicalDate}
+              markedDays={markedDays}
+              kcalByDate={kcalByDate}
+              onSelectDay={setViewDate}
               weights={weights}
               weightTrend={weightTrend}
               weightChange={weightChange}
@@ -714,18 +1104,20 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               guidance={guidance}
               guidanceStale={guidanceStale}
               dayType={dayType}
-              onToggleWorkout={() => void toggleWorkout()}
+              onOpenWorkout={openWorkout}
               onLogWeight={() => setWeightOpen(true)}
               onOpenTargets={() => setTargetsOpen(true)}
               onOpenTrend={() => setTrendOpen(true)}
               onOpenExpenditure={() => setExpenditureOpen(true)}
               onLogFood={() => pushDetail({ kind: 'food-search' })}
               onScanBarcode={() => pushDetail({ kind: 'food-barcode' })}
-              onChat={() => setChatOpen(true)}
+              onEditEntry={setEditingFood}
+              onChat={() => selectTab('mus')}
             />
           ) : null}
-          {!detail && tab === 'journey' ? (
+          {!detail && tab === 'grove' ? (
             <JourneyScreen
+              mode="grove"
               goals={goals}
               tasks={tasks}
               routines={allRoutines}
@@ -733,30 +1125,80 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               workouts={workouts}
               foodEntries={foodEntries}
               progress={progress}
+              presenceDates={presenceDates}
+              todayLogical={todayLogical}
               faithEnabled={preferences?.faith_enabled ?? false}
               scripture={scripture}
-              onAddGoal={() => setGoalOpen(true)}
-              onFinishGoal={(goal) => void finishGoal(goal)}
+              onAddGoal={() => setGoalFlow({ goalId: null })}
+              onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
               onOpenSettings={() => setSettingsOpen(true)}
-              onChat={() => setChatOpen(true)}
+              onWeeklyReset={() => setWeeklyResetOpen(true)}
+              onChat={() => selectTab('mus')}
             />
+          ) : null}
+          {!detail && tab === 'mus' ? (
+            <MusScreen userId={userId} logicalDate={logicalDate} recommended={recommended} />
           ) : null}
         </main>
 
-        <nav className={styles.tabbar} aria-label="Primary navigation">
-          {TABS.map(({ id, label, Icon }) => (
-            <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => selectTab(id)}>
-              <Icon size={23} weight={tab === id ? 'fill' : 'regular'} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
+        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen ? (
+          <nav className={styles.tabbar} aria-label="Primary navigation" data-disabled={detail ? '1' : undefined}>
+            {TABS.map(({ id, label, Icon }) => (
+              <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => selectTab(id)}>
+                <Icon size={23} weight={tab === id ? 'fill' : 'regular'} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        ) : null}
 
       </div>
 
       {notice ? <div className={styles.toast} role="status">{notice}</div> : null}
 
-      <ActionDialog open={planOpen} onClose={() => setPlanOpen(false)} title="Choose one next action" description="Coco can suggest, but only you can confirm what enters your day.">
+      {addOpen ? (
+        <AddSheet
+          userId={userId}
+          timeZone={timeZone}
+          dayStartsAt={dayStartsAt}
+          viewLogicalDate={viewLogicalDate}
+          todayLogical={todayLogical}
+          workoutReady={Boolean(activeWorkout)}
+          onClose={() => setAddOpen(false)}
+          onFood={() => {
+            setAddOpen(false);
+            pushDetail({ kind: 'food-search' });
+          }}
+          onScan={() => {
+            setAddOpen(false);
+            pushDetail({ kind: 'food-barcode' });
+          }}
+          onWeight={() => {
+            setAddOpen(false);
+            setWeightOpen(true);
+          }}
+          onWorkout={() => {
+            setAddOpen(false);
+            openWorkout();
+          }}
+          onTask={() => {
+            setAddOpen(false);
+            setTaskOpen(true);
+          }}
+          onLogged={(message) => setNotice(message)}
+        />
+      ) : null}
+
+      {editingFood ? (
+        <FoodRecordSheet
+          entry={editingFood}
+          userId={userId}
+          onClose={() => setEditingFood(null)}
+          onChanged={(message) => setNotice(message)}
+        />
+      ) : null}
+
+      <ActionDialog open={planOpen} onClose={() => setPlanOpen(false)} title="Choose one next action" description="Mus can suggest, but only you can confirm what enters your day.">
         <form className={styles.formStack} onSubmit={choosePlan}>
           <label htmlFor="plan-action">What would make today feel meaningfully lighter?</label>
           <textarea id="plan-action" value={planLabel} onChange={(event) => setPlanLabel(event.target.value)} rows={3} autoFocus />
@@ -764,7 +1206,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
         </form>
       </ActionDialog>
 
-      <ActionDialog open={addOpen} onClose={() => setAddOpen(false)} title="Add to Today">
+      <ActionDialog open={taskOpen} onClose={() => setTaskOpen(false)} title="Add a task or routine">
         <form className={styles.formStack} onSubmit={addPlanningItem}>
           <fieldset className={styles.segmented}>
             <legend className={styles.srOnly}>Item type</legend>
@@ -774,14 +1216,6 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           <label htmlFor="item-title">Name</label>
           <input id="item-title" value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} autoFocus />
           <button className={styles.primaryButton} type="submit">Save {taskKind}</button>
-        </form>
-      </ActionDialog>
-
-      <ActionDialog open={goalOpen} onClose={() => setGoalOpen(false)} title="Create a goal" description="Coco may help shape it later. Nothing is committed until you save it.">
-        <form className={styles.formStack} onSubmit={addGoal}>
-          <label htmlFor="goal-title">What are you working toward?</label>
-          <input id="goal-title" value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} autoFocus />
-          <button className={styles.primaryButton} type="submit">Confirm goal</button>
         </form>
       </ActionDialog>
 
@@ -858,17 +1292,54 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
         )}
       </ActionDialog>
 
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        theme={theme}
-        onTheme={setTheme}
-        faithEnabled={preferences?.faith_enabled ?? false}
-        onFaith={(enabled) => void toggleFaith(enabled)}
-        email={email}
-      />
-
-      <CocoChat open={chatOpen} onClose={() => setChatOpen(false)} userId={userId} logicalDate={logicalDate} recommended={recommended} />
+      <ActionDialog
+        open={Boolean(settingsField)}
+        onClose={() => setSettingsField(null)}
+        title="Update this setting"
+        description="These numbers recompute targets in code. Mus never sets them."
+      >
+        {settingsField === 'sex' ? (
+          <div className={styles.choiceRow}>
+            {(['female', 'male'] as const).map((id) => (
+              <button key={id} type="button" className={styles.secondaryButton} onClick={() => void patchProfile({ sex: id })}>
+                {id}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {settingsField === 'goal' ? (
+          <div className={styles.choiceColumn}>
+            {(['lose', 'maintain', 'gain'] as const).map((id) => (
+              <button key={id} type="button" className={styles.secondaryButton} onClick={() => void patchProfile({ goal: id })}>
+                {id}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {settingsField === 'timezone' ? (
+          <button type="button" className={styles.primaryButton} onClick={() => void patchProfile({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })}>
+            Use this device’s timezone
+          </button>
+        ) : null}
+        {settingsField === 'day-start' ? (
+          <div className={styles.choiceColumn}>
+            {['00:00:00', '04:00:00', '05:00:00', '06:00:00'].map((value) => (
+              <button key={value} type="button" className={styles.secondaryButton} onClick={() => void patchProfile({ day_starts_at: value })}>
+                {value.slice(0, 5)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {settingsField === 'locale' ? (
+          <div className={styles.choiceColumn}>
+            {(['taglish', 'en', 'fil'] as const).map((id) => (
+              <button key={id} type="button" className={styles.secondaryButton} onClick={() => void patchProfile({ locale: id })}>
+                {id}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </ActionDialog>
     </div>
   );
 }
@@ -876,6 +1347,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
 function DetailView({
   detail,
   userId,
+  loggedAt,
   onBack,
   onAddProduct,
   onDescribeInChat,
@@ -883,6 +1355,7 @@ function DetailView({
 }: {
   detail: DetailScreen;
   userId: string;
+  loggedAt?: string;
   onBack: () => void;
   onAddProduct: (barcode: string) => void;
   onDescribeInChat: () => void;
@@ -905,6 +1378,7 @@ function DetailView({
         {detail.kind === 'food-search' ? (
           <FoodSearch
             userId={userId}
+            loggedAt={loggedAt}
             onAddProduct={() => onAddProduct('')}
             onDescribeInChat={onDescribeInChat}
           />
@@ -922,7 +1396,7 @@ function DetailView({
 
 function CompanionButton({ onClick }: { onClick: () => void }) {
   return (
-    <button className={styles.companionButton} type="button" onClick={onClick} aria-label="Talk to Coco">
+    <button className={styles.companionButton} type="button" onClick={onClick} aria-label="Talk to Mus">
       <Image src="/coco-seed.png" alt="" width={44} height={44} />
     </button>
   );
@@ -934,20 +1408,21 @@ function AppScreenHeader({ title, subtitle, onChat }: { title: string; subtitle:
       <div>
         <h2>{title}</h2>
         <p>{subtitle}</p>
+        <SyncStatusBar className={styles.syncChip} />
       </div>
       <CompanionButton onClick={onChat} />
     </header>
   );
 }
 
-function CocoHabitat({ progress, onJourney }: { progress: { totalPoints: number; stageKey: string }; onJourney: () => void }) {
+function CocoHabitat({ progress, onGrove }: { progress: { totalPoints: number; stageKey: string }; onGrove: () => void }) {
   const threshold = progress.totalPoints < 100 ? 100 : progress.totalPoints < 300 ? 300 : progress.totalPoints < 700 ? 700 : 1500;
   const percent = Math.min(100, Math.max(4, progress.totalPoints / threshold * 100));
   return (
-    <section className={styles.habitat} aria-label={`Coco is at the ${stageLabel(progress.stageKey)} stage with ${progress.totalPoints} growth points`}>
+    <section className={styles.habitat} aria-label={`Mus is at the ${stageLabel(progress.stageKey)} stage with ${progress.totalPoints} growth points`}>
       <div className={styles.atmosphere} aria-hidden="true" />
-      <Image className={styles.cocoImage} src="/coco-seed.png" alt="Coco, a hopeful seed companion with a gentle expression" width={196} height={196} priority />
-      <button className={styles.stageProgress} type="button" onClick={onJourney}>
+      <Image className={styles.cocoImage} src="/coco-seed.png" alt="Mus, a hopeful seed companion with a gentle expression" width={196} height={196} priority />
+      <button className={styles.stageProgress} type="button" onClick={onGrove}>
         <Tree size={16} weight="fill" />
         <span>{stageLabel(progress.stageKey)}</span>
         <i aria-hidden="true"><b style={{ width: `${percent}%` }} /></i>
@@ -962,63 +1437,166 @@ function HomeScreen({
   completedCount,
   foodCount,
   progress,
+  homeGoal,
+  homeGoalSteps,
+  inboxDraft,
+  inboxItems,
+  onInboxDraft,
+  onCaptureInbox,
   onPlan,
   onStart,
-  onToday,
-  onJourney,
+  onGrove,
+  onOpenGoal,
   onChat,
-  onNotNow,
+  onBecome,
+  onWeeklyReset,
+  futureSelf,
+  welcomeBack,
+  resetDue,
 }: {
   date: Date;
   recommended: string | null;
   completedCount: number;
   foodCount: number;
   progress: { totalPoints: number; stageKey: string };
+  homeGoal: LocalGoal | null;
+  homeGoalSteps: number;
+  inboxDraft: string;
+  inboxItems: LocalInboxItem[];
+  onInboxDraft: (value: string) => void;
+  onCaptureInbox: (event: React.FormEvent) => void;
   onPlan: () => void;
   onStart: () => void;
-  onToday: () => void;
-  onJourney: () => void;
+  onGrove: () => void;
+  onOpenGoal: () => void;
   onChat: () => void;
-  onNotNow: () => void;
+  onBecome: () => void;
+  onWeeklyReset: () => void;
+  futureSelf: string | null;
+  welcomeBack: boolean;
+  resetDue: boolean;
 }) {
+  const weeks = homeGoal
+    ? Math.max(1, Math.floor(Math.max(0, Date.now() - Date.parse(homeGoal.created_at)) / 604_800_000) + 1)
+    : 1;
   return (
     <div className={`${styles.screen} ${styles.homeScreen}`}>
       <header className={styles.homeHeader}>
-        <p className={styles.eyebrow}>{titleDate(date)}</p>
-        <h2>{greeting(date)}</h2>
-        <p>{recommended ? 'One thing matters now. Coco is holding the rest.' : 'Nothing is planned yet. That is allowed.'}</p>
+        <div className={styles.homeTop}>
+          <p className={styles.eyebrow} suppressHydrationWarning>
+            {titleDate(date)}
+          </p>
+          <SyncStatusBar className={styles.syncChip} />
+        </div>
+        <h2 suppressHydrationWarning>{greeting(date)}</h2>
+        <p className={styles.homeLead}>
+          {welcomeBack
+            ? 'Welcome back. Nothing was taken away.'
+            : recommended
+              ? 'One thing matters now. Mus is holding the rest.'
+              : 'Nothing is planned yet. That is allowed.'}
+        </p>
       </header>
-      <CocoHabitat progress={progress} onJourney={onJourney} />
+      <CocoHabitat progress={progress} onGrove={onGrove} />
+      {welcomeBack ? (
+        <p className={`${styles.mutedNote} ${styles.homeNote}`}>
+          We will not dump overdue work on today. Plan one realistic step.
+        </p>
+      ) : null}
+      {!futureSelf ? (
+        <button type="button" className={styles.workingToward} onClick={onBecome}>
+          <Compass size={22} />
+          <span>
+            <b>Becoming</b>
+            <strong>Who are you trying to become?</strong>
+            <small>A sentence is enough. Skip anytime.</small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ) : (
+        <p className={`${styles.mutedNote} ${styles.homeNote}`}>{futureSelf}</p>
+      )}
+      {resetDue ? (
+        <button type="button" className={styles.workingToward} onClick={onWeeklyReset}>
+          <Tree size={22} />
+          <span>
+            <b>Weekly Reset</b>
+            <strong>A look at the week, not a score</strong>
+            <small>Unfinished stays off today until you choose.</small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ) : null}
+      {homeGoal ? (
+        <button type="button" className={styles.workingToward} onClick={onOpenGoal}>
+          <Compass size={22} />
+          <span>
+            <b>Working toward</b>
+            <strong>{homeGoal.title}</strong>
+            <small>
+              {homeGoalSteps} {homeGoalSteps === 1 ? 'step' : 'steps'} · week {weeks}
+            </small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ) : null}
       <section className={styles.actionCard}>
         <div className={styles.missionEyebrow}>
           <p>{recommended ? 'Next on your list' : 'Nothing planned'}</p>
           {recommended ? <span>confirmed</span> : null}
         </div>
         <h3>{recommended ?? 'Want to put one thing on today?'}</h3>
-        <p className={styles.muted}>{recommended ? 'Coco is reminding you, not changing your plan.' : 'Coco will not fill your day without you.'}</p>
+        <p className={styles.muted}>{recommended ? 'Mus is reminding you, not changing your plan.' : 'Mus will not fill your day without you.'}</p>
         <div className={styles.buttonRow}>
           <button className={styles.primaryButton} type="button" onClick={recommended ? onStart : onPlan}>
             {recommended ? 'Start' : 'Plan today'}
           </button>
-          <button className={styles.secondaryButton} type="button" onClick={recommended ? onToday : onChat}>
-            {recommended ? 'Change' : 'Ask Coco'}
+          <button className={styles.secondaryButton} type="button" onClick={recommended ? onPlan : onChat}>
+            {recommended ? 'Change' : 'Ask Mus'}
           </button>
-          {recommended ? <button className={styles.tertiaryButton} type="button" onClick={onNotNow}>Not now</button> : null}
         </div>
       </section>
-      <section className={styles.confirmedLedger} aria-label="Confirmed activity today">
-        <p className={styles.eyebrow}>Confirmed today</p>
-        {completedCount > 0 ? <div><CheckCircle size={19} weight="fill" /><span>{completedCount} {completedCount === 1 ? 'action' : 'actions'} completed</span><small>today</small></div> : null}
-        {foodCount > 0 ? <div><ForkKnife size={19} /><span>{foodCount} {foodCount === 1 ? 'item' : 'items'} logged</span><small>today</small></div> : null}
-        {completedCount === 0 && foodCount === 0 ? <p className={styles.ledgerEmpty}>Nothing confirmed yet today. Coco only counts what you confirm.</p> : null}
+      <section className={styles.inboxCapture}>
+        <p className={styles.eyebrow}>Life Inbox</p>
+        <h3>Park it here</h3>
+        <p className={styles.muted}>Private by default. Mus cannot read this until you allow it.</p>
+        <form onSubmit={onCaptureInbox}>
+          <label className={styles.srOnly} htmlFor="life-inbox">Life Inbox</label>
+          <textarea
+            id="life-inbox"
+            rows={2}
+            value={inboxDraft}
+            onChange={(event) => onInboxDraft(event.target.value)}
+            placeholder="A thought, a task, something you do not want to lose…"
+          />
+          <button className={styles.secondaryButton} type="submit" disabled={!inboxDraft.trim()}>
+            Save privately
+          </button>
+        </form>
+        {inboxItems.length > 0 ? (
+          <p className={styles.inboxCount}>
+            {inboxItems.length} unprocessed {inboxItems.length === 1 ? 'item' : 'items'}
+          </p>
+        ) : null}
       </section>
-      <button className={styles.talkButton} type="button" onClick={onChat}><ChatCircleDots size={19} /> Talk to Coco</button>
+      {completedCount > 0 || foodCount > 0 ? (
+        <section className={styles.confirmedLedger} aria-label="Confirmed activity today">
+          <p className={styles.eyebrow}>Confirmed today</p>
+          {completedCount > 0 ? <div><CheckCircle size={19} weight="fill" /><span>{completedCount} {completedCount === 1 ? 'action' : 'actions'} completed</span><small>today</small></div> : null}
+          {foodCount > 0 ? <div><ForkKnife size={19} /><span>{foodCount} {foodCount === 1 ? 'item' : 'items'} logged</span><small>today</small></div> : null}
+        </section>
+      ) : null}
     </div>
   );
 }
 
 function TodayScreen({
+  embedded,
   date,
+  todayLogical,
+  viewLogicalDate,
+  markedDays,
+  onSelectDay,
   tasks,
   routines,
   completedRoutineIds,
@@ -1034,7 +1612,12 @@ function TodayScreen({
   onPlan,
   onChat,
 }: {
+  embedded?: boolean;
   date: Date;
+  todayLogical: string;
+  viewLogicalDate: string;
+  markedDays: ReadonlySet<string>;
+  onSelectDay: (iso: string) => void;
   tasks: LocalTask[];
   routines: LocalRoutine[];
   completedRoutineIds: Set<string>;
@@ -1057,8 +1640,12 @@ function TodayScreen({
   const confirmed = doneTasks.length + doneRoutines.length;
   const total = tasks.length + routines.length;
   return (
-    <div className={`${styles.screen} ${styles.listScreen}`}>
-      <AppScreenHeader title="Today" subtitle={`${titleDate(date)} · ${confirmed} of ${Math.max(total, confirmed)} confirmed`} onChat={onChat} />
+    <div className={embedded ? styles.homeToday : `${styles.screen} ${styles.listScreen}`}>
+      {embedded ? null : (
+        <AppScreenHeader title="Today" subtitle={`${titleDate(date)} · ${confirmed} of ${Math.max(total, confirmed)} confirmed`} onChat={onChat} />
+      )}
+      <DayStrip todayLogical={todayLogical} selected={viewLogicalDate} marked={markedDays} onSelect={onSelectDay} />
+      <PastDayBanner visible={viewLogicalDate !== todayLogical} />
       <section className={styles.nextActionBar}>
         <div><p className={styles.eyebrow}>Next · on your list</p><h3>{plan?.selected_label_snapshot ?? 'Choose one honest next action'}</h3><span>{plan ? '25 min focus · saved on device' : 'Nothing is added until you confirm'}</span></div>
         <button type="button" onClick={plan ? onFocus : onPlan}>{plan ? 'Start' : 'Choose'}</button>
@@ -1094,7 +1681,7 @@ function TodayScreen({
 
       <section className={styles.focusSuggestion}>
         <p className={styles.eyebrow}>Focus</p>
-        <h3>{plan ? `A 25-minute session on “${plan.selected_label_snapshot}” is the one Coco keeps suggesting.` : 'Choose one action and Coco can hold a quiet timer for it.'}</h3>
+        <h3>{plan ? `A 25-minute session on “${plan.selected_label_snapshot}” is the one Mus keeps suggesting.` : 'Choose one action and Mus can hold a quiet timer for it.'}</h3>
         <p>Timer and nudges only. KayaMo in the browser cannot block other apps.</p>
         {plan ? <button type="button" onClick={onFocus}><Clock size={17} /> Set up focus</button> : null}
         {sessions.filter((session) => session.status === 'completed').length > 0 ? <span className={styles.successLine}><CheckCircle weight="fill" /> {sessions.filter((session) => session.status === 'completed').length} completed</span> : null}
@@ -1115,6 +1702,11 @@ function HealthScreen({
   kcalProgress,
   macros,
   locale,
+  todayLogical,
+  viewLogicalDate,
+  markedDays,
+  kcalByDate,
+  onSelectDay,
   weights,
   weightTrend,
   weightChange,
@@ -1123,19 +1715,25 @@ function HealthScreen({
   guidance,
   guidanceStale,
   dayType,
-  onToggleWorkout,
+  onOpenWorkout,
   onLogWeight,
   onOpenTargets,
   onOpenTrend,
   onOpenExpenditure,
   onLogFood,
   onScanBarcode,
+  onEditEntry,
   onChat,
 }: {
   entries: ReturnType<typeof useLiveFoodEntries>;
   kcalProgress: NutritionProgress;
   macros: MacroProgress[];
   locale: Locale;
+  todayLogical: string;
+  viewLogicalDate: string;
+  markedDays: ReadonlySet<string>;
+  kcalByDate: ReadonlyMap<string, number>;
+  onSelectDay: (iso: string) => void;
   weights: LocalWeightLog[];
   weightTrend: ReturnType<typeof computeWeightTrend>;
   weightChange: ReturnType<typeof trendChange>;
@@ -1144,13 +1742,14 @@ function HealthScreen({
   guidance: GuidanceSnapshot | null;
   guidanceStale: boolean;
   dayType: string;
-  onToggleWorkout: () => void;
+  onOpenWorkout: () => void;
   onLogWeight: () => void;
   onOpenTargets: () => void;
   onOpenTrend: () => void;
   onOpenExpenditure: () => void;
   onLogFood: () => void;
   onScanBarcode: () => void;
+  onEditEntry: (entry: LocalFoodEntry) => void;
   onChat: () => void;
 }) {
   const orderedWeights = [...weights]
@@ -1174,10 +1773,16 @@ function HealthScreen({
 
   return (
     <div className={`${styles.screen} ${styles.listScreen}`}>
-      <AppScreenHeader title="Health" subtitle="Numbers come from your records, not from Coco." onChat={onChat} />
+      <AppScreenHeader
+        title="Life"
+        subtitle={viewLogicalDate === todayLogical ? 'Physical Self first. Numbers come from your records, not from Mus.' : 'You are looking at a past day.'}
+        onChat={onChat}
+      />
+      <DayStrip todayLogical={todayLogical} selected={viewLogicalDate} marked={markedDays} onSelect={onSelectDay} />
+      <PastDayBanner visible={viewLogicalDate !== todayLogical} />
 
       <section className={styles.healthSection}>
-        <p className={styles.eyebrow}>Food · today</p>
+        <p className={styles.eyebrow}>Food · {viewLogicalDate === todayLogical ? 'today' : viewLogicalDate}</p>
         <div className={styles.nutritionCard}>
           <div className={styles.calorieLine}>
             <strong>{kcalProgress.eatenKcal}</strong>
@@ -1243,7 +1848,7 @@ function HealthScreen({
               <p className={styles.mealGroupLabel}>{mealSlotLabel(group.slot, locale)}</p>
               <div className={styles.plainList}>
                 {group.rows.map((entry) => (
-                  <div className={styles.dataRow} key={entry.id}>
+                  <button className={`${styles.dataRow} ${styles.dataRowButton}`} type="button" key={entry.id} onClick={() => onEditEntry(entry)}>
                     <div>
                       <strong>{entry.food_name_snapshot}</strong>
                       <span>{entry.serving_label_snapshot ?? `${entry.grams} g`}</span>
@@ -1254,7 +1859,7 @@ function HealthScreen({
                         {entry.source} · {Math.round(Number(entry.confidence) * 100)}%
                       </small>
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1269,6 +1874,8 @@ function HealthScreen({
           </button>
         </div>
       </section>
+
+      <WeekBars todayLogical={todayLogical} kcalByDate={kcalByDate} selected={viewLogicalDate} />
 
       <section className={styles.healthSection}>
         <p className={styles.eyebrow}>Weight &amp; guidance</p>
@@ -1327,11 +1934,27 @@ function HealthScreen({
         <div className={styles.trainingCard}>
           <h3>{activeWorkout ? 'Workout in progress' : 'Ready when you are'}</h3>
           <p>{activeWorkout ? 'This session is saved locally and survives a reconnect.' : `${workouts.filter((row) => row.status === 'completed').length} completed workouts in history.`}</p>
-          <div><button type="button" onClick={onToggleWorkout}>{activeWorkout ? 'Finish workout' : 'Start workout'}</button><span className={styles.secondaryActionLabel}>{workouts.length} logged</span></div>
+          <div>
+            <button type="button" onClick={onOpenWorkout}>
+              {activeWorkout ? 'Continue workout' : 'Start workout'}
+            </button>
+            <span className={styles.secondaryActionLabel}>{workouts.length} logged</span>
+          </div>
         </div>
       </section>
 
       <p className={styles.safetyNote}>Health progress never earns rewards for eating less, losing weight, or training through pain.</p>
+      <section className={styles.lifeShelves}>
+        <p className={styles.eyebrow}>Other areas</p>
+        {LIFE_AREAS.filter((area) => area !== 'physical').map((area) => (
+          <div key={area} className={styles.lifeShelf}>
+            <span>
+              <strong>{LIFE_AREA_LABELS[area]}</strong>
+              <small>Set up later. Hidden areas stay gone without rebuilding the app.</small>
+            </span>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
@@ -1376,7 +1999,7 @@ function TargetsDialog({
       open={open}
       onClose={onClose}
       title="Your daily targets"
-      description="Generated in code from your confirmed records. Coco never sets these numbers."
+      description="Generated in code from your confirmed records. Mus never sets these numbers."
     >
       <div className={styles.readingStack}>
         {targets.length === 0 ? (
@@ -1413,7 +2036,7 @@ function TargetsDialog({
                 </ul>
                 <p className={styles.mutedNote}>
                   Floors and the deficit ceiling are enforced in code. They cannot be lowered by
-                  asking Coco.
+                  asking Mus.
                 </p>
               </div>
             ) : null}
@@ -1494,7 +2117,8 @@ function GuidanceSetupNote({
   );
 }
 
-function JourneyScreen({ goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, faithEnabled, scripture, onAddGoal, onFinishGoal, onOpenSettings, onChat }: {
+function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, presenceDates, todayLogical, faithEnabled, scripture, onAddGoal, onOpenGoal, onOpenSettings, onWeeklyReset, onChat }: {
+  mode: 'goals' | 'grove';
   goals: LocalGoal[];
   tasks: LocalTask[];
   routines: LocalRoutine[];
@@ -1502,15 +2126,16 @@ function JourneyScreen({ goals, tasks, routines, routineCompletions, workouts, f
   workouts: LocalWorkout[];
   foodEntries: ReturnType<typeof useLiveFoodEntries>;
   progress: { totalPoints: number; stageKey: string; acceptedEventKeys: string[] };
+  presenceDates: string[];
+  todayLogical: string;
   faithEnabled: boolean;
   scripture: LocalScripturePassage[];
   onAddGoal: () => void;
-  onFinishGoal: (goal: LocalGoal) => void;
+  onOpenGoal: (goal: LocalGoal) => void;
   onOpenSettings: () => void;
+  onWeeklyReset?: () => void;
   onChat: () => void;
 }) {
-  const nextThreshold = progress.totalPoints < 100 ? 100 : progress.totalPoints < 300 ? 300 : progress.totalPoints < 700 ? 700 : 1500;
-  const stagePercent = Math.min(100, progress.totalPoints / nextThreshold * 100);
   const trace = progress.acceptedEventKeys.slice(-5).reverse();
   const eventLabels = new Map<string, string>([
     ...tasks.map((task) => [task.id, task.title] as const),
@@ -1520,18 +2145,72 @@ function JourneyScreen({ goals, tasks, routines, routineCompletions, workouts, f
     ...workouts.map((workout) => [workout.id, 'Completed workout'] as const),
     ...foodEntries.map((entry) => [entry.id, entry.food_name_snapshot] as const),
   ]);
+  const presenceSet = new Set(presenceDates);
+  const last28 = Array.from({ length: 28 }, (_, index) => shiftLogicalDate(todayLogical, index - 27));
+  const presentCount = last28.filter((iso) => presenceSet.has(iso)).length;
+  const goalList = (
+    <section className={styles.journeySection}>
+      <div className={styles.compactSectionTitle}><p className={styles.eyebrow}>Goals you confirmed</p><button type="button" onClick={onAddGoal}><Plus size={17} /> Add</button></div>
+      <div className={styles.goalList}>
+        {goals.length === 0 ? <EmptyLine text="No goals yet. Start with something that matters to you." /> : goals.map((goal) => (
+          <button key={goal.id} className={styles.checkRow} type="button" onClick={() => onOpenGoal(goal)}>
+            {goal.status === 'completed' ? <CheckCircle size={23} weight="fill" /> : <Target size={23} />}
+            <span className={goal.status === 'completed' ? styles.done : ''}>{goal.title}</span>
+            <span className={styles.rowMeta}>{goal.status}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+  if (mode === 'goals') {
+    return (
+      <div className={`${styles.screen} ${styles.listScreen}`}>
+        <AppScreenHeader title="Goals" subtitle="One thing at a time, big enough to matter" onChat={onChat} />
+        {goalList}
+      </div>
+    );
+  }
   return (
     <div className={`${styles.screen} ${styles.listScreen}`}>
-      <AppScreenHeader title="Journey" subtitle={`${progress.totalPoints} points from confirmed actions`} onChat={onChat} />
-      <section className={styles.stageCard}>
-        <div className={styles.stageTitle}><Tree size={17} weight="fill" /><strong>{stageLabel(progress.stageKey)}</strong></div>
-        <p>{progress.totalPoints} of {nextThreshold} points toward the next stage · {Math.round(stagePercent)}%</p>
-        <div className={styles.progressTrack} aria-label={`${progress.totalPoints} of ${nextThreshold} points`}><span style={{ width: `${stagePercent}%` }} /></div>
-        <div className={styles.currentStageArt}><Image src="/coco-seed.png" alt={`Coco at the ${stageLabel(progress.stageKey)} stage`} width={104} height={104} /><span>{stageLabel(progress.stageKey)}</span></div>
-        <details className={styles.stageDetails}>
-          <summary>What each stage means</summary>
-          <p>Seed begins at 0 points, Sprouting seed at 100, Sapling at 300, Young tree at 700, and Flourishing tree at 1,500.</p>
-        </details>
+      <AppScreenHeader title="Grove" subtitle={`${progress.totalPoints} points from confirmed actions`} onChat={onChat} />
+      {onWeeklyReset ? (
+        <button type="button" className={styles.workingToward} onClick={onWeeklyReset}>
+          <Tree size={22} />
+          <span>
+            <b>Weekly Reset</b>
+            <strong>Review goals and unfinished work</strong>
+            <small>Nothing is dumped onto today from here.</small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ) : null}
+      <section className={styles.journeySection}>
+        <p className={styles.eyebrow}>Stages</p>
+        <div className={styles.surfaceCard}>
+          {COMPANION_STAGES.map((stage, index) => {
+            const current = stage.key === progress.stageKey;
+            const reached = progress.totalPoints >= stage.minimumPoints;
+            return (
+              <div className={styles.ladderRow} key={stage.key}>
+                {index === 0 ? (
+                  <span className={styles.ladderArt}>
+                    <Image src="/coco-seed.png" alt="" width={38} height={38} />
+                  </span>
+                ) : (
+                  <span className={styles.ladderGhost}>art</span>
+                )}
+                <span>
+                  <strong>{stageLabel(stage.key)}</strong>
+                  <small>from {stage.minimumPoints} points</small>
+                </span>
+                <span className={styles.ladderTag} data-on={current ? '1' : undefined}>
+                  {current ? 'now' : reached ? 'reached' : 'later'}
+                </span>
+              </div>
+            );
+          })}
+          <p className={styles.mutedNote}>Four stage illustrations are still missing. The rows hold their place rather than repeating the seed.</p>
+        </div>
       </section>
       <section className={styles.journeySection}>
         <p className={styles.eyebrow}>What produced this progress</p>
@@ -1544,27 +2223,28 @@ function JourneyScreen({ goals, tasks, routines, routineCompletions, workouts, f
           })}
         </div>
       </section>
-      <section className={styles.journeySection}>
-        <div className={styles.compactSectionTitle}><p className={styles.eyebrow}>Goals you confirmed</p><button type="button" onClick={onAddGoal}><Plus size={17} /> Add</button></div>
-        <div className={styles.goalList}>
-          {goals.length === 0 ? <EmptyLine text="No goals yet. Start with something that matters to you." /> : goals.map((goal) => (
-            <button key={goal.id} className={styles.checkRow} type="button" onClick={() => onFinishGoal(goal)} aria-pressed={goal.status === 'completed'}>
-              {goal.status === 'completed' ? <CheckCircle size={23} weight="fill" /> : <Target size={23} />}
-              <span className={goal.status === 'completed' ? styles.done : ''}>{goal.title}</span>
-              <span className={styles.rowMeta}>{goal.kind}</span>
-            </button>
-          ))}
-        </div>
-      </section>
       <section className={styles.presenceSection}>
-        <p className={styles.eyebrow}>Presence</p>
-        <p>{progress.acceptedEventKeys.length} confirmed {progress.acceptedEventKeys.length === 1 ? 'action' : 'actions'} recorded. Missed days never take progress away.</p>
+        <p className={styles.eyebrow}>Presence · last 28 days</p>
+        <div className={styles.surfaceCard}>
+          <div className={styles.presenceGrid} role="img" aria-label={`${presentCount} of the last 28 days have a confirmed action`}>
+            {last28.map((iso) => (
+              <i key={iso} data-active={presenceSet.has(iso) ? '' : undefined} />
+            ))}
+          </div>
+          <div className={styles.presenceLegend}>
+            <span><i data-on />confirmed</span>
+            <span><i />quiet</span>
+          </div>
+          <p>
+            {presentCount} {presentCount === 1 ? 'day' : 'days'} with something confirmed. Quiet days take nothing away, and there is no streak to break.
+          </p>
+        </div>
       </section>
       {faithEnabled ? (
         <section className={styles.faithCard}>
           <p className={styles.eyebrow}>Faith mode · reviewed Scripture</p>
           {scripture[0] ? <><blockquote>“{scripture[0].text}”</blockquote><cite>{scripture[0].reference} · World English Bible</cite></> : <p>Reviewed passages will appear here when available.</p>}
-          <p className={styles.muted}>Coco can support reflection, but is not a theological authority.</p>
+          <p className={styles.muted}>Mus can support reflection, but is not a theological authority.</p>
         </section>
       ) : (
         <button className={styles.faithInvite} type="button" onClick={onOpenSettings}>
@@ -1582,49 +2262,11 @@ function EmptyLine({ text }: { text: string }) {
   return <p className={styles.emptyLine}>{text}</p>;
 }
 
-function SettingsDialog({ open, onClose, theme, onTheme, faithEnabled, onFaith, email }: {
-  open: boolean;
-  onClose: () => void;
-  theme: Theme;
-  onTheme: (theme: Theme) => void;
-  faithEnabled: boolean;
-  onFaith: (enabled: boolean) => void;
-  email: string;
-}) {
-  return (
-    <ActionDialog open={open} onClose={onClose} title="Settings">
-      <div className={styles.settingsStack}>
-        <section>
-          <p className={styles.eyebrow}>Appearance</p>
-          <div className={styles.themeChoices}>
-            <button type="button" aria-pressed={theme === 'system'} suppressHydrationWarning onClick={() => onTheme('system')}><Sparkle size={19} /> System</button>
-            <button type="button" aria-pressed={theme === 'day'} suppressHydrationWarning onClick={() => onTheme('day')}><Sun size={19} /> Day</button>
-            <button type="button" aria-pressed={theme === 'night'} suppressHydrationWarning onClick={() => onTheme('night')}><Moon size={19} /> Night</button>
-          </div>
-        </section>
-        <label className={styles.toggleRow}>
-          <span><strong>Faith mode</strong><small>Show reviewed Scripture and faith reflections in Journey.</small></span>
-          <input type="checkbox" checked={faithEnabled} onChange={(event) => onFaith(event.target.checked)} />
-        </label>
-        <section className={styles.privacyCard}>
-          <UserCircle size={25} />
-          <div><strong>{email}</strong><p>Diary, venting, and prayer entries stay on this device unless you explicitly choose “Remember this.”</p></div>
-        </section>
-        <Link className={styles.settingsLink} href="/about">Food data and privacy notes <CaretRight size={17} /></Link>
-        <SignOutButton />
-      </div>
-    </ActionDialog>
-  );
-}
-
-function CocoChat({ open, onClose, userId, logicalDate, recommended }: {
-  open: boolean;
-  onClose: () => void;
+function MusScreen({ userId, logicalDate, recommended }: {
   userId: string;
   logicalDate: string;
   recommended: string | null;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalCocoMessage[]>([]);
   const [text, setText] = useState('');
@@ -1632,19 +2274,12 @@ function CocoChat({ open, onClose, userId, logicalDate, recommended }: {
   const [rememberedMessageId, setRememberedMessageId] = useState<string | null>(null);
 
   useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || conversationId) return;
-    void createLocalCocoConversation({ userId, title: `Coco · ${logicalDate}` }).then((conversation) => {
+    if (conversationId) return;
+    void createLocalCocoConversation({ userId, title: `Mus · ${logicalDate}` }).then((conversation) => {
       setConversationId(conversation.id);
       setMessages([]);
     });
-  }, [conversationId, logicalDate, open, userId]);
+  }, [conversationId, logicalDate, userId]);
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
@@ -1670,10 +2305,10 @@ function CocoChat({ open, onClose, userId, logicalDate, recommended }: {
         source = 'model';
       }
     } catch {
-      // The deterministic reply keeps Coco useful offline.
+      // The deterministic reply keeps Mus useful offline.
     }
-    const coco = await appendLocalCocoMessage({ userId, conversationId, role: 'assistant', content: reply, responseSource: source });
-    setMessages((current) => [...current, coco]);
+    const mus = await appendLocalCocoMessage({ userId, conversationId, role: 'assistant', content: reply, responseSource: source });
+    setMessages((current) => [...current, mus]);
     setBusy(false);
   }
 
@@ -1693,12 +2328,11 @@ function CocoChat({ open, onClose, userId, logicalDate, recommended }: {
   }, [conversationId, userId]);
 
   return (
-    <dialog ref={ref} className={styles.chatDialog} onClose={onClose} aria-labelledby="coco-chat-title">
+    <div className={`${styles.screen} ${styles.musScreen}`} aria-labelledby="mus-chat-title">
       <header className={styles.chatHeader}>
         <Image src="/coco-seed.png" alt="" width={48} height={48} />
-        <div><h2 id="coco-chat-title">Coco</h2><p>tone · balanced · adapts to the moment</p></div>
+        <div><h2 id="mus-chat-title">Mus</h2><p>tone · balanced · adapts to the moment</p></div>
         <button className={styles.chatHistoryButton} type="button" aria-label="Conversation history"><Clock size={19} /></button>
-        <button className={styles.chatCloseButton} type="button" onClick={onClose} aria-label="Close Coco chat"><X size={20} /></button>
       </header>
       <div className={styles.chatMessages} aria-live="polite">
         {messages.length === 0 ? <div className={styles.cocoBubble}>I’m with you. We can talk, reflect, or choose one realistic next step.</div> : null}
@@ -1716,11 +2350,11 @@ function CocoChat({ open, onClose, userId, logicalDate, recommended }: {
         {busy ? <div className={styles.cocoBubble}>Thinking carefully…</div> : null}
       </div>
       <form className={styles.chatComposer} onSubmit={send}>
-        <label className={styles.srOnly} htmlFor="coco-message">Message Coco</label>
-        <textarea id="coco-message" rows={1} value={text} onChange={(event) => setText(event.target.value)} placeholder="Say what’s actually going on…" />
+        <label className={styles.srOnly} htmlFor="mus-message">Message Mus</label>
+        <textarea id="mus-message" rows={1} value={text} onChange={(event) => setText(event.target.value)} placeholder="Say what’s actually going on…" />
         <button type="submit" disabled={!text.trim() || busy} aria-label="Send message"><PaperPlaneTilt size={21} weight="fill" /></button>
       </form>
-      <p className={styles.chatPrivacy}>Coco can propose actions. You confirm every write.</p>
-    </dialog>
+      <p className={styles.chatPrivacy}>Mus proposes. You confirm every write.</p>
+    </div>
   );
 }

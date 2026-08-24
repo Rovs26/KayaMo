@@ -15,6 +15,7 @@ import {
   mergeRemoteGoals,
   setLocalGoalStatus,
   tombstoneLocalGoal,
+  updateLocalGoalMilestone,
 } from './journey';
 
 vi.mock('./sync', async () => {
@@ -133,5 +134,40 @@ describe('offline journey and companion growth', () => {
     expect(await listLocalGoalMilestones('user-a', goal.id)).toEqual([]);
     expect(await listLocalHabits('user-a')).toEqual([]);
     expect((await getOfflineDb().goals.get(goal.id))?.deleted_at).toBeTruthy();
+  });
+
+  it('pauses a goal without awarding completion points, and renaming a milestone is not a completion', async () => {
+    const goal = await createLocalGoal({ userId: 'user-a', title: 'Find better work' });
+    const milestone = await createLocalGoalMilestone({
+      userId: 'user-a',
+      goalId: goal.id,
+      title: 'List five places',
+    });
+    await updateLocalGoalMilestone({
+      id: milestone.id,
+      userId: 'user-a',
+      title: 'Follow up with Ate Rina',
+    });
+    await setLocalGoalStatus({ id: goal.id, userId: 'user-a', status: 'paused' });
+
+    const renamed = (await listLocalGoalMilestones('user-a', goal.id))[0];
+    expect(renamed?.title).toBe('Follow up with Ate Rina');
+    expect(renamed?.completed_at).toBeNull();
+    expect((await listLocalGoals('user-a'))[0]?.status).toBe('paused');
+    const progression = await getLocalCompanionProgression('user-a');
+    expect(progression.eventCounts.goal_completed).toBe(0);
+    expect(progression.eventCounts.milestone_completed).toBe(0);
+    expect(progression.totalPoints).toBe(0);
+  });
+
+  it('releases a goal without awarding completion points', async () => {
+    const goal = await createLocalGoal({ userId: 'user-a', title: 'A chapter I am setting down' });
+    await setLocalGoalStatus({ id: goal.id, userId: 'user-a', status: 'released' });
+
+    expect((await listLocalGoals('user-a'))[0]?.status).toBe('released');
+    expect((await listLocalGoals('user-a'))[0]?.completed_at).toBeNull();
+    const progression = await getLocalCompanionProgression('user-a');
+    expect(progression.eventCounts.goal_completed).toBe(0);
+    expect(progression.totalPoints).toBe(0);
   });
 });

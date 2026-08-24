@@ -1,7 +1,8 @@
 # AGENTS.md — KayaMo
 
-Filipino-first calorie and gym tracker. PWA → Android → iOS.
-Solo developer. Bundle ID `ph.kayamo.app`. AI companion: Coco.
+Personal Growth OS. PWA → Android → iOS.
+Solo developer. Bundle ID `ph.kayamo.app`. AI companion: Mus.
+Canonical product: `Mus_Build_Source_of_Truth.md`. ADR: `docs/adr/001-mus-source-of-truth.md`.
 
 ## Commands
 ```bash
@@ -25,7 +26,7 @@ pnpm mobile:sync      # copy PWA build into the Capacitor shell
 | `apps/admin` | internal dashboards | anything user-facing |
 | `apps/mobile` | native plugin wiring | UI, business logic |
 | `packages/db` | schema, migrations, RLS, queries | domain formulas |
-| `packages/core` | TDEE, targets, trend, progression | I/O, network, React |
+| `packages/core` | TDEE, targets, trend, progression, identity | I/O, network, React |
 | `packages/food` | resolver cascade, source adapters | UI |
 | `packages/ai` | router, tools, agent, safety, memory | nutrition math |
 | `packages/offline` | Dexie, sync queue | domain logic |
@@ -33,8 +34,10 @@ pnpm mobile:sync      # copy PWA build into the Capacitor shell
 
 Packages never import from apps.
 
+Five tabs: Home, Goals, Life, Grove, Mus. Food and gym live under Life → Physical Self.
+
 ## Hard constraints
-See `.cursor/rules/000-project.mdc`. The short version: Zod on every LLM
+See `.cursor/rules/000-project.mdc` and `.cursor/rules/010-mus-sot.mdc`. Zod on every LLM
 output, `source` + `confidence` on every nutrition write, LLM never produces
 nutrition numbers, calorie floors enforced in code, offline-first writes,
 no health data in logs, never weaken a test to make it pass.

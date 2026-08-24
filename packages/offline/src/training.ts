@@ -230,6 +230,28 @@ export async function getLocalRestTimer(
   return getOfflineDb().rest_timers.get(workoutId);
 }
 
+export async function clearLocalRestTimer(workoutId: string): Promise<void> {
+  await getOfflineDb().rest_timers.delete(workoutId);
+}
+
+export async function extendLocalRestTimer(
+  workoutId: string,
+  extraSeconds: number,
+): Promise<LocalRestTimer | undefined> {
+  if (!Number.isInteger(extraSeconds) || extraSeconds === 0) {
+    throw new Error('Rest extension must be a nonzero integer');
+  }
+  const existing = await getOfflineDb().rest_timers.get(workoutId);
+  if (!existing) return undefined;
+  const base = Math.max(Date.now(), Date.parse(existing.ends_at));
+  const row: LocalRestTimer = {
+    ...existing,
+    ends_at: new Date(base + extraSeconds * 1_000).toISOString(),
+  };
+  await getOfflineDb().rest_timers.put(row);
+  return row;
+}
+
 export async function saveLocalWorkoutPlan(
   input: Omit<WorkoutPlanWrite, 'id' | 'updated_at'> & { id?: string },
 ): Promise<LocalWorkoutPlan> {

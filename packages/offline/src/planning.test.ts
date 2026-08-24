@@ -7,6 +7,7 @@ import {
   listLocalRoutineCompletions,
   listLocalRoutines,
   listLocalTasksForDate,
+  setLocalTaskScheduledFor,
   mergeRemoteRoutines,
   mergeRemoteRoutineCompletions,
   mergeRemoteTasks,
@@ -57,6 +58,18 @@ describe('offline planning', () => {
     expect(await listLocalRoutineCompletions('user-a', '2026-08-22')).toHaveLength(1);
     expect(await pendingCount()).toBe(3);
     expect(await getOfflineDb().companion_events.count()).toBe(1);
+  });
+
+  it('moves a task off today without deleting it', async () => {
+    const live = await createLocalTask({
+      userId: 'user-a',
+      title: 'Email Ate Rina',
+      scheduledFor: '2026-08-24',
+    });
+    await setLocalTaskScheduledFor({ id: live.id, userId: 'user-a', scheduledFor: null });
+    expect(await listLocalTasksForDate('user-a', '2026-08-24')).toEqual([]);
+    expect((await getOfflineDb().tasks.get(live.id))?.scheduled_for).toBeNull();
+    expect((await getOfflineDb().tasks.get(live.id))?.deleted_at).toBeNull();
   });
 
   it('keeps a task tombstoned after a stale sync round-trip', async () => {

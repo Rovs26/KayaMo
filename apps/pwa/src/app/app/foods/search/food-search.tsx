@@ -163,12 +163,16 @@ function EmptyActions({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Button type="button" size="lg" onClick={onAddProduct}>
-        Add it yourself
-      </Button>
       <Button type="button" variant="secondary" size="lg" onClick={onDescribeInChat}>
         Describe it in chat
       </Button>
+      <button
+        type="button"
+        onClick={onAddProduct}
+        className="min-h-11 text-left font-data text-caption uppercase tracking-[0.14em] text-muted"
+      >
+        Add it yourself
+      </button>
     </div>
   );
 }
@@ -230,10 +234,12 @@ export function FoodSearch({
   userId,
   onAddProduct,
   onDescribeInChat,
+  loggedAt,
 }: {
   userId: string;
   onAddProduct: () => void;
   onDescribeInChat: () => void;
+  loggedAt?: string;
 }) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('recent');
@@ -445,6 +451,7 @@ export function FoodSearch({
           confidence: next.confidence,
           timeZone,
           dayStartsAt,
+          loggedAt,
         },
       ]);
       showUndo(
@@ -468,14 +475,15 @@ export function FoodSearch({
   const list = tab === 'recent' ? recent : frequent;
 
   return (
-    <div className="mt-8 flex flex-col gap-5">
+    <div className="mt-2 flex flex-col gap-5">
       <label className="flex flex-col gap-2">
-        <span className="font-data text-caption uppercase tracking-[0.14em] text-muted">search</span>
+        <span className="sr-only">Search foods</span>
         <input
           data-testid="food-search-input"
           value={query}
           onChange={(event) => setQuery(event.target.value.slice(0, 200))}
           placeholder="kanin, adobo, chicken breast"
+          autoFocus
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"

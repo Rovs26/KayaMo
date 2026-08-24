@@ -13,9 +13,13 @@ import type {
   CosmeticDefinition,
   CosmeticUnlock,
   EvolutionStage,
+  FutureSelf,
   GoalMilestone,
   Habit,
   HabitCompletion,
+  InboxItem,
+  Compass,
+  PersonalRule,
   Exercise,
   FoodEntry,
   FocusSession,
@@ -56,6 +60,10 @@ export type LocalDailyLoopPreference = DailyLoopPreference;
 export type LocalScripturePassage = ScripturePassage;
 export type LocalGoal = UserGoal;
 export type LocalGoalMilestone = GoalMilestone;
+export type LocalFutureSelf = FutureSelf;
+export type LocalCompass = Compass;
+export type LocalInboxItem = InboxItem;
+export type LocalPersonalRule = PersonalRule;
 export type LocalHabit = Habit;
 export type LocalHabitCompletion = HabitCompletion;
 export type LocalCompanionEvent = CompanionEvent;
@@ -97,7 +105,11 @@ export type SyncableTable =
   | 'companion_events'
   | 'daily_plans'
   | 'focus_sessions'
-  | 'daily_loop_preferences';
+  | 'daily_loop_preferences'
+  | 'future_selves'
+  | 'compasses'
+  | 'inbox_items'
+  | 'personal_rules';
 
 export type SyncQueueItem = {
   id: string;
@@ -146,6 +158,10 @@ export class KayaMoDB extends Dexie {
   coco_messages!: Table<LocalCocoMessage, string>;
   goals!: Table<LocalGoal, string>;
   goal_milestones!: Table<LocalGoalMilestone, string>;
+  future_selves!: Table<LocalFutureSelf, string>;
+  compasses!: Table<LocalCompass, string>;
+  inbox_items!: Table<LocalInboxItem, string>;
+  personal_rules!: Table<LocalPersonalRule, string>;
   habits!: Table<LocalHabit, string>;
   habit_completions!: Table<LocalHabitCompletion, string>;
   companion_events!: Table<LocalCompanionEvent, string>;
@@ -225,6 +241,12 @@ export class KayaMoDB extends Dexie {
     });
     this.version(8).stores({
       guidance_snapshots: 'user_id, cached_at',
+    });
+    this.version(9).stores({
+      future_selves: 'user_id, updated_at, deleted_at',
+      compasses: 'user_id, updated_at, deleted_at',
+      inbox_items: 'id, user_id, processed_at, updated_at, deleted_at',
+      personal_rules: 'id, user_id, active, updated_at, deleted_at',
     });
   }
 }

@@ -1,10 +1,22 @@
+import { networkInterfaces } from 'node:os';
 import type { NextConfig } from 'next';
 import { loadRootEnv } from '../../packages/db/src/load-root-env';
 
 loadRootEnv();
 
+/** Phone testing hits the LAN address, which Next 16 blocks unless listed. */
+function allowedDevHosts(): string[] {
+  const hosts = new Set(['127.0.0.1', 'localhost']);
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) hosts.add(addr.address);
+    }
+  }
+  return [...hosts];
+}
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['127.0.0.1'],
+  allowedDevOrigins: allowedDevHosts(),
   transpilePackages: [
     '@kayamo/ai',
     '@kayamo/core',

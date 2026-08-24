@@ -6,6 +6,9 @@ import {
   logWeight,
   mergeRemoteWeightLogs,
   recomputeLocalLogicalDates,
+  restoreLocalFoodEntry,
+  reviseLocalFoodEntry,
+  tombstoneLocalFoodEntry,
   tombstoneLocalWeightLog,
 } from './writes';
 
@@ -111,5 +114,70 @@ describe('offline nutrition and weight', () => {
     expect((await getOfflineDb().weight_logs.get(weight.id))?.logical_date).toBe(
       '2026-08-22',
     );
+  });
+
+  it('revises grams while keeping source and confidence on the same row', async () => {
+    const food = await logFoodEntry({
+      userId: 'user-1',
+      mealSlot: 'tanghalian',
+      foodId: 'food-1',
+      foodName: 'Adobo',
+      quantity: '1',
+      grams: '100',
+      kcal: '200',
+      protein_g: '20',
+      carbs_g: '4',
+      fat_g: '10',
+      fiber_g: '0',
+      sugar_g: '0',
+      sodium_mg: '400',
+      source: 'ph_core',
+      resolvedVia: 'ph_core',
+      inputMethod: 'search',
+      confidence: '0.92',
+    });
+    const revised = await reviseLocalFoodEntry({
+      id: food.id,
+      userId: 'user-1',
+      quantity: '1',
+      grams: '200',
+      kcal: '400',
+      protein_g: '40',
+      carbs_g: '8',
+      fat_g: '20',
+      fiber_g: '0',
+      sugar_g: '0',
+      sodium_mg: '800',
+    });
+    expect(revised?.grams).toBe('200');
+    expect(revised?.kcal).toBe('400');
+    expect(revised?.source).toBe('ph_core');
+    expect(revised?.confidence).toBe('0.92');
+    expect(revised?.id).toBe(food.id);
+  });
+
+  it('restores a tombstoned food entry for the eight-second undo', async () => {
+    const food = await logFoodEntry({
+      userId: 'user-1',
+      mealSlot: 'tanghalian',
+      foodId: 'food-1',
+      foodName: 'Kanin',
+      quantity: '1',
+      grams: '100',
+      kcal: '130',
+      protein_g: '2.7',
+      carbs_g: '28.2',
+      fat_g: '0.3',
+      fiber_g: '0.4',
+      sugar_g: '0.1',
+      sodium_mg: '1',
+      source: 'ph_core',
+      resolvedVia: 'ph_core',
+      inputMethod: 'quick',
+    });
+    await tombstoneLocalFoodEntry({ id: food.id, userId: 'user-1' });
+    const restored = await restoreLocalFoodEntry({ id: food.id, userId: 'user-1' });
+    expect(restored?.deleted_at).toBeNull();
+    expect(restored?.food_name_snapshot).toBe('Kanin');
   });
 });

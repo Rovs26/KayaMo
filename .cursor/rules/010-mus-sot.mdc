@@ -1,0 +1,14 @@
+---
+description: Mus source of truth, tab IA, and phased delivery. Applies to all work.
+alwaysApply: true
+---
+
+Canonical product file: `Mus_Build_Source_of_Truth.md`. Hierarchy: that file, then an explicit owner override, then Claude design that does not contradict it, then ADRs, then code.
+
+KayaMo is the shipped product name for now. Companion is **Mus** (mustard seed). Bundle ID `ph.kayamo.app`. First market: Philippines.
+
+Five tabs only: **Home** (Daily Command Center), **Goals**, **Life** (areas; Physical Self holds food/gym), **Grove** (XP/tree/story), **Mus** (full chat). No sixth primary add tab.
+
+Build Phase 0 foundation, then Phase 1 becoming loop, before new life-area breadth. Do not silently drop §37 inventory — mark `PLANNED` / `DEFERRED_*`.
+
+Mus proposes; the user confirms writes. Stored data is not automatically AI-readable. XP never decreases. Use **Released**, not failed, when a goal is set down. No shame copy, no tree death, no diagnoses, no “God told me”.

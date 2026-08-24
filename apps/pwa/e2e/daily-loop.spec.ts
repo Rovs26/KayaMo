@@ -7,7 +7,7 @@ test('daily loop remains usable at mobile width and resumes through the offline 
     localStorage.setItem('kayamo:last-user-id', 'e2e-local-user');
   });
   await page.goto('/offline/app');
-  await expect(page.getByRole('heading', { name: 'Today with Coco' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Today with Mus' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Faith reflection' })).toHaveCount(0);
   await page.getByLabel('What is the one action that would help today?').fill('Read one page');
   await page.getByRole('button', { name: 'Choose this action' }).click();
@@ -24,7 +24,7 @@ test('daily loop remains usable at mobile width and resumes through the offline 
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   await context.setOffline(true);
   await page.goto('/app');
-  await expect(page.getByRole('heading', { name: 'Today with Coco' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Today with Mus' })).toBeVisible();
   await expect(page.getByText('Offline · changes stay on this device until sync returns')).toBeVisible();
   const savedPlans = await page.evaluate(async () => {
     const request = indexedDB.open('kayamo');

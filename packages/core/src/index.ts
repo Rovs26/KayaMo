@@ -77,6 +77,39 @@ export {
   type ProgressionAnalysis,
   type TrainingSetPerformance,
 } from './progression';
+export {
+  LIFE_AREA_LABELS,
+  LIFE_AREAS,
+  type LifeArea,
+} from './identity';
+export {
+  DAY_CAPACITIES,
+  DAY_CAPACITY_LABELS,
+  DAY_INTENT_LABELS,
+  DAY_INTENTS,
+  PLAN_MODE_LABELS,
+  PLAN_MODES,
+  daysBetweenLogical,
+  proposeDayPlan,
+  proposedPlanMode,
+  shiftLogicalDateUtc,
+  suggestedPlanLimit,
+  weeklyResetDue,
+  type DayCapacity,
+  type DayIntent,
+  type DayPlanCandidate,
+  type DayPlanItem,
+  type DayPlanProposal,
+  type PlanMode,
+} from './day-plan';
+export {
+  bestE1rmFromSets,
+  proposeExerciseLoad,
+  proposeFromSessions,
+  sessionVolumeKg,
+  type LastWorkingSet,
+  type ProposedExercisePlan,
+} from './workout-proposal';
 
 export type DailyTaskContext = {
   id: string;
