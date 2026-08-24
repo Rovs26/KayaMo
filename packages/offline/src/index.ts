@@ -31,6 +31,8 @@ export type {
   LocalJournalEntry,
   LocalBusyBlock,
   LocalActionGrants,
+  LocalLifeStoryEntry,
+  LocalGroveChapter,
   LocalRoutine,
   LocalRoutineCompletion,
   LocalServing,
@@ -95,6 +97,13 @@ export {
   saveLocalActionGrant,
   tombstoneLocalBusyBlock,
 } from './integrations';
+export {
+  closeLocalGroveChapter,
+  createLocalLifeStoryEntry,
+  listLocalGroveChapters,
+  listLocalLifeStory,
+  tombstoneLocalLifeStoryEntry,
+} from './archive';
 export {
   completeLocalRoutine,
   createLocalRoutine,

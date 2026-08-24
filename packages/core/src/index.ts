@@ -17,6 +17,27 @@ export {
   type LearnedDuration,
 } from './adaptive';
 export {
+  COMPLEXITY_LABELS,
+  COMPLEXITY_LEVELS,
+  STORY_KINDS,
+  buildPersonalArchive,
+  chapterCloseReady,
+  chapterCloseSummary,
+  evidenceBankEntries,
+  isMusLite,
+  professionalForArea,
+  proposeStoryFromGoal,
+  renderArchiveMarkdown,
+  renderEvidenceMarkdown,
+  type ArchiveGoal,
+  type ArchiveStoryEntry,
+  type ChapterCloseInput,
+  type ComplexityLevel,
+  type PersonalArchive,
+  type StoryDraft,
+  type StoryKind,
+} from './archive';
+export {
   buildDailyLoopState,
   dailyLoopPhase,
   focusRemainingSeconds,

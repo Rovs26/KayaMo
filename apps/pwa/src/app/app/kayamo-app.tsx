@@ -36,12 +36,19 @@ import {
   DAY_CAPACITY_LABELS,
   actualMinutesBetween,
   busiestWeekday,
+  buildPersonalArchive,
+  evidenceBankEntries,
+  proposeStoryFromGoal,
+  renderArchiveMarkdown,
+  renderEvidenceMarkdown,
+  type ArchiveStoryEntry,
   busyHoursFromBlocks,
   computeWeightTrend,
   dayTypeForToday,
   deadlineRisk,
   estimateCapacityFromHistory,
   forgottenItems,
+  isMusLite,
   integrationStatuses,
   LIFE_AREA_LABELS,
   daysBetweenLogical,
@@ -59,6 +66,7 @@ import {
   workoutVersionForCapacity,
   type AdaptivePattern,
   type ActionLevel,
+  type ComplexityLevel,
   type CompanionEventType,
   type DayCapacity,
   type DayIntent,
@@ -89,9 +97,11 @@ import {
   completeLocalGoalMilestone,
   completeLocalRoutine,
   createLocalBusyBlock,
+  closeLocalGroveChapter,
   createLocalCocoConversation,
   createLocalFocusSession,
   createLocalInboxItem,
+  createLocalLifeStoryEntry,
   createLocalPersonalRule,
   createLocalRoutine,
   createLocalTask,
@@ -112,6 +122,7 @@ import {
   listLocalGoals,
   listLocalGoalMilestones,
   listLocalInboxItems,
+  listLocalLifeStory,
   listLocalBusyBlocks,
   listLocalOpenTasks,
   listLocalPersonalRules,
@@ -135,6 +146,7 @@ import {
   tombstoneLocalBusyBlock,
   type LocalBusyBlock,
   type LocalCocoMessage,
+  type LocalLifeStoryEntry,
   type LocalCompanionEvent,
   type LocalCompass,
   type LocalDailyLoopPreference,
@@ -159,6 +171,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { SyncStatusBar } from './sync-status-bar';
 import { AddSheet } from './add-sheet';
 import { DayStrip, PastDayBanner, WeekBars } from './day-strip';
+import { ChapterCloseSheet } from './chapter-close-sheet';
 import { CommitmentSheet } from './commitment-sheet';
 import { FirstRun } from './first-run';
 import { FoodRecordSheet } from './food-record-sheet';
@@ -191,6 +204,37 @@ function readDismissedPatternKeys(): string[] {
 
 function persistDismissedPatternKeys(keys: string[]) {
   localStorage.setItem(DISMISSED_PATTERNS_KEY, JSON.stringify(keys));
+}
+
+const COMPLEXITY_KEY = 'kayamo:complexity';
+
+function readComplexity(): ComplexityLevel {
+  if (typeof window === 'undefined') return 'balanced';
+  const saved = localStorage.getItem(COMPLEXITY_KEY);
+  return saved === 'simple' || saved === 'advanced' || saved === 'balanced' ? saved : 'balanced';
+}
+
+function downloadText(filename: string, contents: string) {
+  const mime = filename.endsWith('.json')
+    ? 'application/json;charset=utf-8'
+    : 'text/markdown;charset=utf-8';
+  const blob = new Blob([contents], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function asArchiveStory(row: LocalLifeStoryEntry): ArchiveStoryEntry {
+  return {
+    title: row.title,
+    summary: row.summary,
+    happenedOn: row.happened_on,
+    kind: row.kind,
+    professional: row.professional,
+  };
 }
 
 function speechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
@@ -407,6 +451,9 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [commitmentOpen, setCommitmentOpen] = useState(false);
   const [busyBlocks, setBusyBlocks] = useState<LocalBusyBlock[]>([]);
   const [actionGrants, setActionGrants] = useState<Partial<Record<IntegrationId, ActionLevel>>>({});
+  const [storyEntries, setStoryEntries] = useState<LocalLifeStoryEntry[]>([]);
+  const [chapterOpen, setChapterOpen] = useState(false);
+  const [complexity, setComplexity] = useState<ComplexityLevel>(readComplexity);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
@@ -656,7 +703,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const refresh = useCallback(async () => {
     const weekday = new Date(`${logicalDate}T12:00:00`).getDay();
     const yesterday = shiftLogicalDate(logicalDate, -1);
-    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules, nextBlocks, nextGrants] = await Promise.all([
+    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules, nextBlocks, nextGrants, nextStory] = await Promise.all([
       listLocalTasksForDate(userId, logicalDate),
       listLocalRoutines(userId, weekday),
       listLocalRoutines(userId),
@@ -680,6 +727,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       listLocalPersonalRules(userId),
       listLocalBusyBlocks(userId),
       getLocalActionGrants(userId),
+      listLocalLifeStory(userId),
     ]);
     const nextMilestones = (
       await Promise.all(nextGoals.map((goal) => listLocalGoalMilestones(userId, goal.id)))
@@ -707,6 +755,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setPersonalRules(nextRules);
     setBusyBlocks(nextBlocks);
     setActionGrants(nextGrants);
+    setStoryEntries(nextStory);
     setYesterdayNote(priorPlan?.tomorrow_note ?? null);
     setScripture(await listLocalScripture({ faithEnabled: prefs?.faith_enabled ?? false }));
   }, [logicalDate, userId]);
@@ -1249,6 +1298,25 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               selectTab('home');
             }}
             onChanged={refresh}
+            storySourceIds={storyEntries.map((row) => row.source_id).filter((id): id is string => Boolean(id))}
+            onAddToStory={async (goal, status) => {
+              await createLocalLifeStoryEntry({
+                userId,
+                draft: proposeStoryFromGoal({
+                  id: goal.id,
+                  title: goal.title,
+                  status,
+                  happenedOn: todayLogical,
+                  lifeArea: goal.life_area,
+                }),
+              });
+              setNotice(
+                status === 'released'
+                  ? 'Kept in Life Story as set down. Nothing was taken away.'
+                  : 'Kept in Life Story.',
+              );
+              await refresh();
+            }}
           />
         ) : null}
         {planSheet ? (
@@ -1256,8 +1324,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             candidates={sheetCandidates}
             yesterdayNote={planningTomorrow ? (plan?.tomorrow_note ?? yesterdayNote) : yesterdayNote}
             returningAfterDays={planningTomorrow ? 0 : returningAfterDays}
-            estimatedCapacity={insights.estimatedCapacity}
-            learnedNote={insights.durationNote}
+            estimatedCapacity={isMusLite(complexity) ? null : insights.estimatedCapacity}
+            learnedNote={isMusLite(complexity) ? null : insights.durationNote}
             busyHours={planBusyHours}
             busyNote={
               planBusyHours > 0
@@ -1291,6 +1359,32 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             }}
           />
         ) : null}
+        {chapterOpen ? (
+          <ChapterCloseSheet
+            onClose={() => setChapterOpen(false)}
+            onSave={async (fields) => {
+              const chapter = await closeLocalGroveChapter({
+                userId,
+                closedOn: todayLogical,
+                fields,
+              });
+              await createLocalLifeStoryEntry({
+                userId,
+                draft: {
+                  title: `Chapter closed ${todayLogical}`,
+                  summary: chapter.summary,
+                  happenedOn: todayLogical,
+                  kind: 'chapter',
+                  professional: false,
+                  sourceId: chapter.id,
+                },
+              });
+              setChapterOpen(false);
+              setNotice('Chapter kept in Life Story. The grove did not lose any points.');
+              await refresh();
+            }}
+          />
+        ) : null}
         {weeklyResetOpen ? (
           <WeeklyResetSheet
             todayLogical={todayLogical}
@@ -1299,8 +1393,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               .filter((task) => task.scheduled_for !== todayLogical)
               .map((task) => task.title)}
             forgottenTitles={insights.forgotten.map((row) => row.title)}
-            durationNote={insights.durationNote}
-            capacityNote={insights.capacityNote}
+            durationNote={isMusLite(complexity) ? null : insights.durationNote}
+            capacityNote={isMusLite(complexity) ? null : insights.capacityNote}
             deadlineNotes={insights.deadlineNotes}
             patterns={insights.patterns}
             goals={goals}
@@ -1361,6 +1455,52 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             }}
             integrations={integrationRows}
             onGrant={(id) => void cycleGrant(id)}
+            complexity={complexity}
+            onComplexity={(level) => {
+              localStorage.setItem(COMPLEXITY_KEY, level);
+              setComplexity(level);
+            }}
+            onExportArchive={() => {
+              const archive = buildPersonalArchive({
+                exportedAt: new Date().toISOString(),
+                futureSelf: futureSelf?.statement ?? null,
+                compass: compass
+                  ? { mattersNow: compass.matters_now, protect: compass.protect }
+                  : null,
+                grove: { totalPoints: progress.totalPoints, stageKey: progress.stageKey },
+                story: storyEntries.map(asArchiveStory),
+                goals: goals.map((goal) => ({
+                  title: goal.title,
+                  status: goal.status,
+                  lifeArea: goal.life_area,
+                  targetDate: goal.target_date,
+                })),
+              });
+              downloadText(`kayamo-archive-${todayLogical}.md`, renderArchiveMarkdown(archive));
+              downloadText(`kayamo-archive-${todayLogical}.json`, JSON.stringify(archive, null, 2));
+              setNotice('Archive downloaded on this device. Leaving is allowed.');
+            }}
+            onExportEvidence={() => {
+              const entries = evidenceBankEntries(storyEntries.map(asArchiveStory));
+              downloadText(
+                `kayamo-evidence-${todayLogical}.md`,
+                renderEvidenceMarkdown(entries),
+              );
+              downloadText(
+                `kayamo-evidence-${todayLogical}.json`,
+                JSON.stringify(
+                  {
+                    product: 'KayaMo',
+                    companion: 'Mus',
+                    note: 'This is not a generated CV.',
+                    entries,
+                  },
+                  null,
+                  2,
+                ),
+              );
+              setNotice('Evidence Bank downloaded. This is not a generated CV.');
+            }}
             bodyRows={[
               { id: 'sex', label: 'Sex', value: guidance?.profile.sex ?? 'not set' },
               { id: 'goal', label: 'Goal', value: guidance?.profile.goal ?? 'not set' },
@@ -1559,12 +1699,15 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               presenceDates={presenceDates}
               todayLogical={todayLogical}
               recordsNote={insights.recordsNote}
+              storyEntries={storyEntries}
+              musLite={isMusLite(complexity)}
               faithEnabled={preferences?.faith_enabled ?? false}
               scripture={scripture}
               onAddGoal={() => setGoalFlow({ goalId: null })}
               onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
               onOpenSettings={() => setSettingsOpen(true)}
               onWeeklyReset={() => setWeeklyResetOpen(true)}
+              onCloseChapter={() => setChapterOpen(true)}
               onChat={() => selectTab('mus')}
             />
           ) : null}
@@ -1573,7 +1716,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           ) : null}
         </main>
 
-        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen && !commitmentOpen ? (
+        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen && !commitmentOpen && !chapterOpen ? (
           <nav className={styles.tabbar} aria-label="Primary navigation" data-disabled={detail ? '1' : undefined}>
             {TABS.map(({ id, label, Icon }) => (
               <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => selectTab(id)}>
@@ -2685,7 +2828,7 @@ function GuidanceSetupNote({
   );
 }
 
-function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, presenceDates, todayLogical, recordsNote = null, faithEnabled, scripture, onAddGoal, onOpenGoal, onOpenSettings, onWeeklyReset, onChat }: {
+function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, presenceDates, todayLogical, recordsNote = null, storyEntries = [], musLite = false, faithEnabled, scripture, onAddGoal, onOpenGoal, onOpenSettings, onWeeklyReset, onCloseChapter, onChat }: {
   mode: 'goals' | 'grove';
   goals: LocalGoal[];
   tasks: LocalTask[];
@@ -2697,12 +2840,15 @@ function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, worko
   presenceDates: string[];
   todayLogical: string;
   recordsNote?: string | null;
+  storyEntries?: LocalLifeStoryEntry[];
+  musLite?: boolean;
   faithEnabled: boolean;
   scripture: LocalScripturePassage[];
   onAddGoal: () => void;
   onOpenGoal: (goal: LocalGoal) => void;
   onOpenSettings: () => void;
   onWeeklyReset?: () => void;
+  onCloseChapter?: () => void;
   onChat: () => void;
 }) {
   const trace = progress.acceptedEventKeys.slice(-5).reverse();
@@ -2753,12 +2899,47 @@ function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, worko
           <CaretRight size={16} />
         </button>
       ) : null}
+      {onCloseChapter ? (
+        <button type="button" className={styles.workingToward} onClick={onCloseChapter}>
+          <BookOpenText size={22} />
+          <span>
+            <b>Close this chapter</b>
+            <strong>What changed, what carries forward</strong>
+            <small>Points stay. The tree does not die.</small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ) : null}
       <section className={styles.journeySection}>
-        <p className={styles.eyebrow}>From your records</p>
-        <p className={styles.mutedNote}>
-          {recordsNote ?? 'Not enough confirmed days yet for a pattern. That is allowed.'}
-        </p>
+        <p className={styles.eyebrow}>Life Story</p>
+        {storyEntries.length === 0 ? (
+          <p className={styles.emptyLine}>Nothing confirmed into the story yet. Completing or setting down a goal can be kept here.</p>
+        ) : (
+          <div className={styles.traceList}>
+            {storyEntries.slice(0, musLite ? 3 : 12).map((row) => (
+              <div key={row.id}>
+                <CheckCircle size={18} weight="fill" />
+                <span>
+                  <strong>{row.title}</strong>
+                  <small>
+                    {row.happened_on}
+                    {row.kind === 'goal_released' ? ' · set down' : ''}
+                    {row.professional ? ' · professional' : ''}
+                  </small>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
+      {musLite ? null : (
+        <section className={styles.journeySection}>
+          <p className={styles.eyebrow}>From your records</p>
+          <p className={styles.mutedNote}>
+            {recordsNote ?? 'Not enough confirmed days yet for a pattern. That is allowed.'}
+          </p>
+        </section>
+      )}
       <section className={styles.journeySection}>
         <p className={styles.eyebrow}>Stages</p>
         <div className={styles.surfaceCard}>

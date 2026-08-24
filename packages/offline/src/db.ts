@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { GuidanceSnapshot } from '@kayamo/core';
+import type { GuidanceSnapshot, StoryKind } from '@kayamo/core';
 import type {
   AgentMemory,
   CocoConversation,
@@ -101,6 +101,35 @@ export type LocalActionGrants = {
   updated_at: string;
 };
 
+export type LocalLifeStoryEntry = {
+  id: string;
+  user_id: string;
+  title: string;
+  summary: string;
+  happened_on: string;
+  kind: StoryKind;
+  professional: boolean;
+  source_id: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type LocalGroveChapter = {
+  id: string;
+  user_id: string;
+  closed_on: string;
+  changed: string;
+  accomplished: string;
+  let_go: string;
+  learned: string;
+  carries: string;
+  summary: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
 export type SyncableTable =
   | 'food_entries'
   | 'weight_logs'
@@ -196,6 +225,8 @@ export class KayaMoDB extends Dexie {
   local_journal_entries!: Table<LocalJournalEntry, string>;
   busy_blocks!: Table<LocalBusyBlock, string>;
   action_grants!: Table<LocalActionGrants, string>;
+  life_story_entries!: Table<LocalLifeStoryEntry, string>;
+  grove_chapters!: Table<LocalGroveChapter, string>;
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
   sync_queue!: Table<SyncQueueItem, string>;
 
@@ -271,6 +302,10 @@ export class KayaMoDB extends Dexie {
     this.version(10).stores({
       busy_blocks: 'id, user_id, logical_date, updated_at, deleted_at',
       action_grants: 'user_id, updated_at',
+    });
+    this.version(11).stores({
+      life_story_entries: 'id, user_id, happened_on, updated_at, deleted_at',
+      grove_chapters: 'id, user_id, closed_on, updated_at, deleted_at',
     });
   }
 }

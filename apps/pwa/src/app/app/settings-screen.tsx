@@ -2,6 +2,9 @@
 
 import {
   ACTION_LEVEL_LABELS,
+  COMPLEXITY_LABELS,
+  COMPLEXITY_LEVELS,
+  type ComplexityLevel,
   type IntegrationStatus,
 } from '@kayamo/core';
 import {
@@ -35,6 +38,10 @@ export function SettingsScreen({
   dayRows,
   onEditBody,
   onBack,
+  complexity,
+  onComplexity,
+  onExportArchive,
+  onExportEvidence,
 }: {
   email: string;
   theme: Theme;
@@ -51,6 +58,10 @@ export function SettingsScreen({
   dayRows: Array<{ id: string; label: string; value: string }>;
   onEditBody: (id: string) => void;
   onBack: () => void;
+  complexity: ComplexityLevel;
+  onComplexity: (level: ComplexityLevel) => void;
+  onExportArchive: () => void;
+  onExportEvidence: () => void;
 }) {
   return (
     <div className={`${styles.flowOverlay} ${styles.flowSolid}`}>
@@ -156,6 +167,40 @@ export function SettingsScreen({
             <CaretRight size={15} />
           </button>
           <p>Life Inbox stays private until you allow a specific item. Storage is not automatic access.</p>
+        </div>
+
+        <p className={styles.eyebrow}>How much to show · Mus Lite</p>
+        <div className={styles.surfaceCard}>
+          <div className={styles.choiceRow}>
+            {COMPLEXITY_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={complexity === level ? styles.choiceOn : styles.choiceOff}
+                aria-pressed={complexity === level}
+                onClick={() => onComplexity(level)}
+              >
+                {COMPLEXITY_LABELS[level]}
+              </button>
+            ))}
+          </div>
+          <p className={styles.mutedNote}>
+            Simple hides extra notes. Export, privacy, and your records stay available.
+          </p>
+        </div>
+
+        <p className={styles.eyebrow}>Your archive · always free</p>
+        <div className={styles.settingsGroup}>
+          <button type="button" onClick={onExportArchive}>
+            <span>Download Life Archive</span>
+            <small>Markdown of story, goals, and becoming — not health numbers</small>
+            <CaretRight size={15} />
+          </button>
+          <button type="button" onClick={onExportEvidence}>
+            <span>Download Evidence Bank</span>
+            <small>Work you marked as professional. Not a generated CV.</small>
+            <CaretRight size={15} />
+          </button>
         </div>
 
         <p className={styles.eyebrow}>Privacy</p>

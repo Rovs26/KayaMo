@@ -72,6 +72,8 @@ export function GoalFlow({
   onChat,
   onGoToday,
   onChanged,
+  onAddToStory,
+  storySourceIds = [],
 }: {
   userId: string;
   logicalDate: string;
@@ -85,6 +87,8 @@ export function GoalFlow({
   onChat: () => void;
   onGoToday: () => void;
   onChanged: () => Promise<void>;
+  onAddToStory?: (goal: LocalGoal, status: 'completed' | 'released') => Promise<void> | void;
+  storySourceIds?: string[];
 }) {
   const [step, setStep] = useState<Step>(initialGoalId ? 'active' : 'empty');
   const [viewId, setViewId] = useState<string | null>(initialGoalId);
@@ -238,10 +242,10 @@ export function GoalFlow({
       setSetdownOpen(false);
       if (status === 'paused') {
         setNotice('Paused. Off Home, still in Goals. Nothing was taken away.');
-      } else if (status === 'released') {
-        setNotice('Set down. The trail stays. Nothing was taken away.');
       } else if (status === 'completed') {
         setNotice(`Reached. +${COMPANION_EVENT_POINTS.goal_completed} toward the next stage.`);
+      } else if (status === 'released') {
+        setNotice('Set down. The trail stays. Nothing was taken away.');
       } else {
         setNotice('Back on Home.');
       }
@@ -485,6 +489,20 @@ export function GoalFlow({
             <button type="button" onClick={() => void setStatus('active')}>
               <Compass size={19} />
               <span>Pick this back up</span>
+              <CaretRight size={15} />
+            </button>
+          ) : null}
+          {onAddToStory &&
+          (goal.status === 'completed' || goal.status === 'released') &&
+          !storySourceIds.includes(goal.id) ? (
+            <button
+              type="button"
+              onClick={() =>
+                void onAddToStory(goal, goal.status === 'released' ? 'released' : 'completed')
+              }
+            >
+              <BookOpenText size={19} />
+              <span>Keep in Life Story</span>
               <CaretRight size={15} />
             </button>
           ) : null}
