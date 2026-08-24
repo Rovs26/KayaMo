@@ -130,6 +130,14 @@ export async function tombstoneLocalTask(params: {
   void drainQueue();
 }
 
+export async function listLocalTasks(userId: string): Promise<LocalTask[]> {
+  return (await getOfflineDb().tasks.where('user_id').equals(userId).toArray())
+    .filter((row) => !row.deleted_at)
+    .sort(
+      (a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at),
+    );
+}
+
 export async function listLocalTasksForDate(
   userId: string,
   logicalDate: string,

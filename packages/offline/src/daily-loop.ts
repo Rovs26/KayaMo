@@ -201,6 +201,18 @@ export async function finishLocalFocusSession(params: {
   return row;
 }
 
+export async function listLocalDailyPlans(userId: string): Promise<LocalDailyPlan[]> {
+  return (await getOfflineDb().daily_plans.where('user_id').equals(userId).toArray())
+    .filter((row) => !row.deleted_at)
+    .sort((a, b) => b.logical_date.localeCompare(a.logical_date));
+}
+
+export async function listLocalFocusHistory(userId: string): Promise<LocalFocusSession[]> {
+  return (await getOfflineDb().focus_sessions.where('user_id').equals(userId).toArray())
+    .filter((row) => !row.deleted_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
 export async function listLocalFocusSessions(
   userId: string,
   logicalDate: string,

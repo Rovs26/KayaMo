@@ -6,6 +6,7 @@ import {
   createLocalTask,
   listLocalRoutineCompletions,
   listLocalRoutines,
+  listLocalTasks,
   listLocalTasksForDate,
   setLocalTaskScheduledFor,
   mergeRemoteRoutines,
@@ -68,6 +69,7 @@ describe('offline planning', () => {
     });
     await setLocalTaskScheduledFor({ id: live.id, userId: 'user-a', scheduledFor: null });
     expect(await listLocalTasksForDate('user-a', '2026-08-24')).toEqual([]);
+    expect((await listLocalTasks('user-a')).map((row) => row.id)).toEqual([live.id]);
     expect((await getOfflineDb().tasks.get(live.id))?.scheduled_for).toBeNull();
     expect((await getOfflineDb().tasks.get(live.id))?.deleted_at).toBeNull();
   });

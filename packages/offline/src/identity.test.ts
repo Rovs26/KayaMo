@@ -6,6 +6,7 @@ import {
   getLocalCompass,
   getLocalFutureSelf,
   listLocalInboxItems,
+  listLocalPersonalRules,
   mergeRemoteInboxItems,
   processLocalInboxItem,
   saveLocalCompass,
@@ -75,11 +76,15 @@ describe('offline identity and inbox', () => {
     const rule = await createLocalPersonalRule({
       userId: 'user-a',
       title: 'No training through pain',
+      musMayRead: false,
     });
     expect(compass.matters_now).toBe('Finish the thesis chapter');
     expect(compass.active_areas).toEqual([]);
     expect(compass.mus_may_read).toBe(true);
-    expect(rule.mus_may_read).toBe(true);
+    expect(rule.mus_may_read).toBe(false);
+    expect((await listLocalPersonalRules('user-a')).map((row) => row.title)).toEqual([
+      'No training through pain',
+    ]);
   });
 
   it('treats a pre-migration compass without active_areas as an empty list', async () => {

@@ -20,6 +20,8 @@ export function PlanDaySheet({
   candidates,
   yesterdayNote,
   returningAfterDays,
+  estimatedCapacity = null,
+  learnedNote = null,
   initialMode = 'standard',
   onClose,
   onConfirm,
@@ -27,6 +29,8 @@ export function PlanDaySheet({
   candidates: DayPlanCandidate[];
   yesterdayNote: string | null;
   returningAfterDays: number;
+  estimatedCapacity?: DayCapacity | null;
+  learnedNote?: string | null;
   initialMode?: PlanMode;
   onClose: () => void;
   onConfirm: (input: {
@@ -38,7 +42,7 @@ export function PlanDaySheet({
   }) => Promise<void> | void;
 }) {
   const [capacity, setCapacity] = useState<DayCapacity>(
-    returningAfterDays >= 2 ? 'low' : 'normal',
+    returningAfterDays >= 2 ? 'low' : (estimatedCapacity ?? 'normal'),
   );
   const [intent, setIntent] = useState<DayIntent | null>(null);
   const [mode, setMode] = useState<PlanMode>(initialMode);
@@ -118,6 +122,12 @@ export function PlanDaySheet({
         )}
         {proposal.yesterdayNote ? (
           <p className={styles.mutedNote}>From last night: {proposal.yesterdayNote}</p>
+        ) : null}
+        {learnedNote ? <p className={styles.mutedNote}>{learnedNote}</p> : null}
+        {estimatedCapacity && returningAfterDays < 2 ? (
+          <p className={styles.mutedNote}>
+            From confirmed days, a {DAY_CAPACITY_LABELS[estimatedCapacity].toLowerCase()} day is the honest default. You can still pick another.
+          </p>
         ) : null}
 
         <p className={styles.eyebrow}>How is today?</p>

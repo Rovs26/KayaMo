@@ -1,6 +1,6 @@
 'use client';
 
-import { COMPANION_EVENT_POINTS, LIFE_AREA_LABELS, LIFE_AREAS, suggestLifeArea, type LifeArea } from '@kayamo/core';
+import { COMPANION_EVENT_POINTS, LIFE_AREA_LABELS, LIFE_AREAS, deadlineRisk, goalPlausibility, suggestLifeArea, type LifeArea } from '@kayamo/core';
 import {
   createLocalGoal,
   createLocalGoalMilestone,
@@ -94,6 +94,7 @@ export function GoalFlow({
   const [doneLooks, setDoneLooks] = useState('');
   const [firstStep, setFirstStep] = useState('');
   const [lifeArea, setLifeArea] = useState<LifeArea | null>(initialLifeArea);
+  const [doneBy, setDoneBy] = useState('');
   const [milestones, setMilestones] = useState<LocalGoalMilestone[]>([]);
   const [setdownOpen, setSetdownOpen] = useState(false);
   const [changingNext, setChangingNext] = useState(false);
@@ -125,6 +126,13 @@ export function GoalFlow({
   );
   const weeks = goal ? weeksGoing(goal.created_at, Date.now()) : 1;
   const weekHits = thisWeekCount(milestones, Date.now());
+  const remainingSteps = milestones.filter((row) => !row.completed_at).length;
+  const risk = deadlineRisk({
+    today: logicalDate,
+    targetDate: goal?.target_date,
+    remainingSteps,
+  });
+  const pace = goalPlausibility({ remainingSteps, daysLeft: risk.daysLeft });
   const nextTitle = changingNext ? nextDraft : (next?.title ?? nextDraft);
 
   const stats = useMemo(
@@ -142,6 +150,7 @@ export function GoalFlow({
     setDoneLooks('');
     setFirstStep('');
     setLifeArea(initialLifeArea ?? suggestLifeArea(seed));
+    setDoneBy('');
     setStep('draft');
   }
 
@@ -156,6 +165,7 @@ export function GoalFlow({
         description: why.trim() || null,
         origin: 'user',
         lifeArea,
+        targetDate: doneBy || null,
       });
       let order = 0;
       const stepTitle = firstStep.trim();
@@ -309,6 +319,10 @@ export function GoalFlow({
               <span>First step, today-sized</span>
               <textarea value={firstStep} onChange={(event) => setFirstStep(event.target.value)} rows={2} />
             </label>
+            <label>
+              <span>Done-by date · optional</span>
+              <input type="date" value={doneBy} onChange={(event) => setDoneBy(event.target.value)} />
+            </label>
           </div>
           <p className={styles.eyebrow}>Life area · optional</p>
           <div className={styles.choiceRow}>
@@ -384,6 +398,13 @@ export function GoalFlow({
             </div>
           ))}
         </div>
+
+        {goal.target_date ? (
+          <div className={styles.surfaceCard}>
+            <p>{risk.reason || `A date is set: ${goal.target_date}.`}</p>
+            <p className={styles.muted}>{pace.reason}</p>
+          </div>
+        ) : null}
 
         <div className={styles.goalNext}>
           <p className={styles.eyebrow}>Next step</p>

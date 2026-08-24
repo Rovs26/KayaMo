@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   completeLocalEveningReflection,
   createLocalFocusSession,
+  finishLocalFocusSession,
   getLocalDailyPlan,
+  listLocalDailyPlans,
+  listLocalFocusHistory,
   listLocalScripture,
   mergeRemoteDailyPlans,
   saveLocalDailyPlan,
@@ -75,6 +78,25 @@ describe('offline daily loop', () => {
     expect((await getLocalDailyPlan('user-a', '2026-08-22'))?.tomorrow_note).toBe(
       'I returned after a difficult day.',
     );
+  });
+
+  it('lists focus history across days for duration learning', async () => {
+    const plan = await saveLocalDailyPlan({
+      userId: 'user-a', logicalDate: '2026-08-22', actionKind: 'custom',
+      label: 'Write one paragraph', completeMorning: true,
+    });
+    const session = await createLocalFocusSession({
+      userId: 'user-a', logicalDate: '2026-08-22', dailyPlanId: plan.id,
+      targetKind: 'custom', targetLabel: 'Write one paragraph', plannedMinutes: 25,
+    });
+    await startLocalFocusSession({
+      id: session.id, userId: 'user-a', startedAt: '2026-08-22T08:00:00.000Z',
+    });
+    await finishLocalFocusSession({
+      id: session.id, userId: 'user-a', outcome: 'completed', at: '2026-08-22T08:18:00.000Z',
+    });
+    expect((await listLocalDailyPlans('user-a')).map((row) => row.logical_date)).toEqual(['2026-08-22']);
+    expect((await listLocalFocusHistory('user-a')).map((row) => row.id)).toEqual([session.id]);
   });
 
   it('does not expose Scripture until faith mode is enabled', async () => {

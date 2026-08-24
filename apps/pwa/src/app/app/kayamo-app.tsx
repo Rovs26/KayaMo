@@ -32,18 +32,28 @@ import {
   COMPANION_EVENT_POINTS,
   COMPANION_EVENT_TYPES,
   COMPANION_STAGES,
+  DAY_CAPACITY_LABELS,
+  actualMinutesBetween,
+  busiestWeekday,
   computeWeightTrend,
   dayTypeForToday,
+  deadlineRisk,
+  estimateCapacityFromHistory,
+  forgottenItems,
   LIFE_AREA_LABELS,
   daysBetweenLogical,
   goalFitsLifeArea,
+  learnedFocusMinutes,
   listedLifeAreas,
   macroProgress,
   nutritionProgress,
+  proposeAdaptivePatterns,
+  suggestedPlanLimit,
   targetForDayType,
   trendChange,
   weeklyResetDue,
   workoutVersionForCapacity,
+  type AdaptivePattern,
   type CompanionEventType,
   type DayCapacity,
   type DayIntent,
@@ -75,6 +85,7 @@ import {
   createLocalCocoConversation,
   createLocalFocusSession,
   createLocalInboxItem,
+  createLocalPersonalRule,
   createLocalRoutine,
   createLocalTask,
   finishLocalFocusSession,
@@ -85,12 +96,16 @@ import {
   getLocalFutureSelf,
   instantOnLogicalDate,
   listLocalCocoMessages,
+  listLocalCompanionEvents,
   listLocalCompanionPresenceDates,
+  listLocalDailyPlans,
+  listLocalFocusHistory,
   listLocalFocusSessions,
   listLocalGoals,
   listLocalGoalMilestones,
   listLocalInboxItems,
   listLocalOpenTasks,
+  listLocalPersonalRules,
   listLocalRoutineCompletions,
   listLocalRoutines,
   listLocalScripture,
@@ -108,10 +123,12 @@ import {
   setLocalTaskScheduledFor,
   startLocalFocusSession,
   type LocalCocoMessage,
+  type LocalCompanionEvent,
   type LocalCompass,
   type LocalDailyLoopPreference,
   type LocalDailyPlan,
   type LocalFocusSession,
+  type LocalPersonalRule,
   type LocalFoodEntry,
   type LocalFutureSelf,
   type LocalGoal,
@@ -144,6 +161,24 @@ import styles from './kayamo-app.module.css';
 
 type Tab = 'home' | 'goals' | 'life' | 'grove' | 'mus';
 type Theme = 'system' | 'day' | 'night';
+
+const DISMISSED_PATTERNS_KEY = 'kayamo:dismissed-patterns';
+
+function readDismissedPatternKeys(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISMISSED_PATTERNS_KEY) ?? '[]') as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((key): key is string => typeof key === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistDismissedPatternKeys(keys: string[]) {
+  localStorage.setItem(DISMISSED_PATTERNS_KEY, JSON.stringify(keys));
+}
 
 /**
  * Screens pushed on top of a tab rather than routed to. Keeping them in the
@@ -328,6 +363,11 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [futureSelf, setFutureSelf] = useState<LocalFutureSelf | null>(null);
   const [compass, setCompass] = useState<LocalCompass | null>(null);
   const [openTasks, setOpenTasks] = useState<LocalTask[]>([]);
+  const [dailyPlans, setDailyPlans] = useState<LocalDailyPlan[]>([]);
+  const [focusHistory, setFocusHistory] = useState<LocalFocusSession[]>([]);
+  const [companionEvents, setCompanionEvents] = useState<LocalCompanionEvent[]>([]);
+  const [personalRules, setPersonalRules] = useState<LocalPersonalRule[]>([]);
+  const [dismissedPatternKeys, setDismissedPatternKeys] = useState<string[]>(readDismissedPatternKeys);
   const [yesterdayNote, setYesterdayNote] = useState<string | null>(null);
   const [planSheet, setPlanSheet] = useState<PlanMode | null>(null);
   const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
@@ -419,10 +459,115 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     [routineCompletions],
   );
 
+  const insights = useMemo(() => {
+    const samples = focusHistory
+      .filter((row) => row.status === 'completed' && row.started_at && row.completed_at)
+      .map((row) => ({
+        plannedMinutes: row.planned_minutes,
+        actualMinutes: actualMinutesBetween(row.started_at!, row.completed_at!),
+      }));
+    const learned = learnedFocusMinutes(samples);
+    const completedByDate = new Map<string, number>();
+    for (const event of companionEvents) {
+      if (event.event_type !== 'task_completed' && event.event_type !== 'routine_completed') continue;
+      completedByDate.set(event.logical_date, (completedByDate.get(event.logical_date) ?? 0) + 1);
+    }
+    const capacityDays = dailyPlans.map((row) => ({
+      capacity: (row.capacity as DayCapacity | null) ?? null,
+      planned: row.capacity ? suggestedPlanLimit(row.capacity as DayCapacity, 0) : 0,
+      completed: completedByDate.get(row.logical_date) ?? 0,
+    }));
+    const estimatedCapacity = estimateCapacityFromHistory(capacityDays);
+    const forgotten = forgottenItems({
+      today: todayLogical,
+      inbox: inboxItems.map((row) => ({
+        id: row.id,
+        content: row.content,
+        createdAt: row.created_at,
+      })),
+      openTasks: openTasks.map((row) => ({
+        id: row.id,
+        title: row.title,
+        createdAt: row.created_at,
+        scheduledFor: row.scheduled_for,
+      })),
+    });
+    const deadlineNotes = goals
+      .filter((goal) => goal.status === 'active' && goal.target_date)
+      .map((goal) => {
+        const remainingSteps = goalMilestones.filter(
+          (row) => row.goal_id === goal.id && !row.completed_at,
+        ).length;
+        return {
+          goalId: goal.id,
+          title: goal.title,
+          risk: deadlineRisk({
+            today: todayLogical,
+            targetDate: goal.target_date,
+            remainingSteps,
+          }),
+        };
+      })
+      .filter((row) => row.risk.level !== 'none');
+    const tight =
+      deadlineNotes.find((row) => row.risk.level === 'tight' || row.risk.level === 'overdue') ??
+      deadlineNotes[0] ??
+      null;
+    const keptStatements = new Set(personalRules.map((rule) => rule.title));
+    const patterns = proposeAdaptivePatterns({
+      learned,
+      estimatedCapacity,
+      forgotten,
+      deadline: tight ? { goalTitle: tight.title, risk: tight.risk } : null,
+      busiest: busiestWeekday(presenceDates),
+      skipKeys: dismissedPatternKeys,
+    }).filter((pattern) => !keptStatements.has(pattern.statement));
+    const durationNote = learned
+      ? `Focus often lands near ${learned.minutes} minutes.`
+      : null;
+    const capacityNote = estimatedCapacity
+      ? `From confirmed days, a ${DAY_CAPACITY_LABELS[estimatedCapacity].toLowerCase()} day is the honest default.`
+      : null;
+    const week = new Set(
+      Array.from({ length: 7 }, (_, index) => shiftLogicalDate(todayLogical, index - 6)),
+    );
+    const weekPresence = presenceDates.filter((iso) => week.has(iso)).length;
+    const recordsParts: string[] = [];
+    if (weekPresence > 0) {
+      recordsParts.push(`${weekPresence} ${weekPresence === 1 ? 'day' : 'days'} this week`);
+    }
+    if (learned) recordsParts.push(`focus often near ${learned.minutes} min`);
+    if (estimatedCapacity) {
+      recordsParts.push(`${DAY_CAPACITY_LABELS[estimatedCapacity].toLowerCase()} as the honest default`);
+    }
+    return {
+      learned,
+      estimatedCapacity,
+      forgotten,
+      deadlineNotes,
+      patterns,
+      durationNote,
+      capacityNote,
+      recordsNote: recordsParts.length > 0 ? recordsParts.join(' · ') : null,
+    };
+  }, [
+    companionEvents,
+    dailyPlans,
+    dismissedPatternKeys,
+    focusHistory,
+    goalMilestones,
+    goals,
+    inboxItems,
+    openTasks,
+    personalRules,
+    presenceDates,
+    todayLogical,
+  ]);
+
   const refresh = useCallback(async () => {
     const weekday = new Date(`${logicalDate}T12:00:00`).getDay();
     const yesterday = shiftLogicalDate(logicalDate, -1);
-    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan] = await Promise.all([
+    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules] = await Promise.all([
       listLocalTasksForDate(userId, logicalDate),
       listLocalRoutines(userId, weekday),
       listLocalRoutines(userId),
@@ -440,6 +585,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       getLocalCompass(userId),
       listLocalOpenTasks(userId),
       getLocalDailyPlan(userId, yesterday),
+      listLocalDailyPlans(userId),
+      listLocalFocusHistory(userId),
+      listLocalCompanionEvents(userId),
+      listLocalPersonalRules(userId),
     ]);
     const nextMilestones = (
       await Promise.all(nextGoals.map((goal) => listLocalGoalMilestones(userId, goal.id)))
@@ -461,6 +610,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setFutureSelf(nextSelf);
     setCompass(nextCompass);
     setOpenTasks(nextOpen);
+    setDailyPlans(nextDailyPlans);
+    setFocusHistory(nextFocusHistory);
+    setCompanionEvents(nextCompanionEvents);
+    setPersonalRules(nextRules);
     setYesterdayNote(priorPlan?.tomorrow_note ?? null);
     setScripture(await listLocalScripture({ faithEnabled: prefs?.faith_enabled ?? false }));
   }, [logicalDate, userId]);
@@ -761,7 +914,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       targetKind: currentPlan.selected_action_kind ?? 'custom',
       targetRecordId: currentPlan.selected_record_id,
       targetLabel: label,
-      plannedMinutes: 25,
+      plannedMinutes: insights.learned?.minutes ?? 25,
     });
     const started = await startLocalFocusSession({ id: scheduled.id, userId });
     if (started) {
@@ -958,6 +1111,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             candidates={planCandidates}
             yesterdayNote={yesterdayNote}
             returningAfterDays={returningAfterDays}
+            estimatedCapacity={insights.estimatedCapacity}
+            learnedNote={insights.durationNote}
             initialMode={planSheet}
             onClose={() => setPlanSheet(null)}
             onConfirm={(input) => void confirmDayPlan(input)}
@@ -970,10 +1125,32 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             unfinishedTitles={openTasks
               .filter((task) => task.scheduled_for !== todayLogical)
               .map((task) => task.title)}
+            forgottenTitles={insights.forgotten.map((row) => row.title)}
+            durationNote={insights.durationNote}
+            capacityNote={insights.capacityNote}
+            deadlineNotes={insights.deadlineNotes}
+            patterns={insights.patterns}
             goals={goals}
             onGoalStatus={async (id, status) => {
               await setLocalGoalStatus({ id, userId, status, timeZone, dayStartsAt });
               await refresh();
+            }}
+            onKeepPattern={async (pattern: AdaptivePattern) => {
+              await createLocalPersonalRule({
+                userId,
+                title: pattern.statement,
+                musMayRead: false,
+              });
+              const next = [...new Set([...dismissedPatternKeys, pattern.key])];
+              persistDismissedPatternKeys(next);
+              setDismissedPatternKeys(next);
+              setNotice('Kept as a personal rule. Mus cannot read it unless you allow that later.');
+              await refresh();
+            }}
+            onSkipPattern={(pattern: AdaptivePattern) => {
+              const next = [...new Set([...dismissedPatternKeys, pattern.key])];
+              persistDismissedPatternKeys(next);
+              setDismissedPatternKeys(next);
             }}
             onClose={() => setWeeklyResetOpen(false)}
             onFinish={async () => {
@@ -1189,6 +1366,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               progress={progress}
               presenceDates={presenceDates}
               todayLogical={todayLogical}
+              recordsNote={insights.recordsNote}
               faithEnabled={preferences?.faith_enabled ?? false}
               scripture={scripture}
               onAddGoal={() => setGoalFlow({ goalId: null })}
@@ -2269,7 +2447,7 @@ function GuidanceSetupNote({
   );
 }
 
-function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, presenceDates, todayLogical, faithEnabled, scripture, onAddGoal, onOpenGoal, onOpenSettings, onWeeklyReset, onChat }: {
+function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, workouts, foodEntries, progress, presenceDates, todayLogical, recordsNote = null, faithEnabled, scripture, onAddGoal, onOpenGoal, onOpenSettings, onWeeklyReset, onChat }: {
   mode: 'goals' | 'grove';
   goals: LocalGoal[];
   tasks: LocalTask[];
@@ -2280,6 +2458,7 @@ function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, worko
   progress: { totalPoints: number; stageKey: string; acceptedEventKeys: string[] };
   presenceDates: string[];
   todayLogical: string;
+  recordsNote?: string | null;
   faithEnabled: boolean;
   scripture: LocalScripturePassage[];
   onAddGoal: () => void;
@@ -2336,6 +2515,12 @@ function JourneyScreen({ mode, goals, tasks, routines, routineCompletions, worko
           <CaretRight size={16} />
         </button>
       ) : null}
+      <section className={styles.journeySection}>
+        <p className={styles.eyebrow}>From your records</p>
+        <p className={styles.mutedNote}>
+          {recordsNote ?? 'Not enough confirmed days yet for a pattern. That is allowed.'}
+        </p>
+      </section>
       <section className={styles.journeySection}>
         <p className={styles.eyebrow}>Stages</p>
         <div className={styles.surfaceCard}>

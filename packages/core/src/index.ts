@@ -1,6 +1,22 @@
 export const PACKAGE = '@kayamo/core';
 
 export {
+  actualMinutesBetween,
+  busiestWeekday,
+  deadlineRisk,
+  estimateCapacityFromHistory,
+  forgottenItems,
+  goalPlausibility,
+  learnedFocusMinutes,
+  proposeAdaptivePatterns,
+  type AdaptivePattern,
+  type CapacityHistoryDay,
+  type DeadlineRisk,
+  type FocusDurationSample,
+  type ForgottenItem,
+  type LearnedDuration,
+} from './adaptive';
+export {
   buildDailyLoopState,
   dailyLoopPhase,
   focusRemainingSeconds,

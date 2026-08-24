@@ -415,8 +415,12 @@ export async function listLocalHabitCompletions(
 }
 
 export async function listLocalCompanionPresenceDates(userId: string): Promise<string[]> {
-  const rows = await getOfflineDb().companion_events.where('user_id').equals(userId).toArray();
+  const rows = await listLocalCompanionEvents(userId);
   return [...new Set(rows.map((row) => row.logical_date))].sort();
+}
+
+export async function listLocalCompanionEvents(userId: string): Promise<LocalCompanionEvent[]> {
+  return getOfflineDb().companion_events.where('user_id').equals(userId).toArray();
 }
 
 export async function getLocalCompanionProgression(userId: string) {

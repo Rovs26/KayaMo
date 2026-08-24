@@ -9,6 +9,6 @@ KayaMo is the shipped product name for now. Companion is **Mus** (mustard seed).
 
 Five tabs only: **Home** (Daily Command Center), **Goals**, **Life** (areas; Physical Self holds food/gym), **Grove** (XP/tree/story), **Mus** (full chat). No sixth primary add tab.
 
-Phase 0–1 are in. Phase 2 is **Physical Self** depth (nutrition + fitness connected to Goals, Today, and Mus). Do not start other life-area modules, Phase 3 intelligence, or fake integrations. Do not silently drop §37 inventory — mark `SHIPPED` / `PLANNED` / `DEFERRED_*`.
+Phase 0–2 are in. Phase 3 is **local adaptive intelligence** from confirmed records (learned durations, capacity estimate, deadline risk, forgotten items, confirmable pattern notes). Do not start other life-area modules, Phase 4 integrations, or fake calendar/health/wearable connections. Do not silently drop §37 inventory — mark `SHIPPED` / `PLANNED` / `DEFERRED_*`.
 
 Mus proposes; the user confirms writes. Stored data is not automatically AI-readable. XP never decreases. Use **Released**, not failed, when a goal is set down. No shame copy, no tree death, no diagnoses, no “God told me”.
