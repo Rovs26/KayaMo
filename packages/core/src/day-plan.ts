@@ -81,10 +81,12 @@ export function shiftLogicalDateUtc(iso: string, days: number): string {
 export function suggestedPlanLimit(
   capacity: DayCapacity,
   returningAfterDays: number,
+  busyHours = 0,
 ): number {
   const base = CAPACITY_LIMIT[capacity];
-  if (returningAfterDays >= 2) return 1;
-  return base;
+  const afterReturn = returningAfterDays >= 2 ? 1 : base;
+  const reduction = Math.floor(Math.max(0, busyHours) / 3);
+  return Math.max(1, afterReturn - reduction);
 }
 
 export function proposedPlanMode(capacity: DayCapacity, explicit?: PlanMode): PlanMode {
@@ -127,6 +129,7 @@ export function proposeDayPlan(input: {
   yesterdayNote?: string | null;
   returningAfterDays?: number;
   keepIds?: readonly string[];
+  busyHours?: number;
 }): DayPlanProposal {
   const returningAfterDays = input.returningAfterDays ?? 0;
   const welcomeBack = returningAfterDays >= 2;
@@ -134,7 +137,7 @@ export function proposeDayPlan(input: {
   const keep = input.keepIds ? new Set(input.keepIds) : null;
   const limit = keep
     ? keep.size
-    : suggestedPlanLimit(input.capacity, returningAfterDays);
+    : suggestedPlanLimit(input.capacity, returningAfterDays, input.busyHours ?? 0);
   const ordered = [...input.candidates];
   const items: DayPlanItem[] = ordered.map((candidate, index) => {
     const suggested = keep ? keep.has(candidate.id) : index < limit;

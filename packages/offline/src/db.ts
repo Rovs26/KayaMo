@@ -83,6 +83,24 @@ export type LocalJournalEntry = {
   updated_at: string;
 };
 
+export type LocalBusyBlock = {
+  id: string;
+  user_id: string;
+  title: string;
+  logical_date: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type LocalActionGrants = {
+  user_id: string;
+  levels: Record<string, string>;
+  updated_at: string;
+};
+
 export type SyncableTable =
   | 'food_entries'
   | 'weight_logs'
@@ -176,6 +194,8 @@ export class KayaMoDB extends Dexie {
   daily_loop_preferences!: Table<LocalDailyLoopPreference, string>;
   scripture_passages!: Table<LocalScripturePassage, string>;
   local_journal_entries!: Table<LocalJournalEntry, string>;
+  busy_blocks!: Table<LocalBusyBlock, string>;
+  action_grants!: Table<LocalActionGrants, string>;
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
   sync_queue!: Table<SyncQueueItem, string>;
 
@@ -247,6 +267,10 @@ export class KayaMoDB extends Dexie {
       compasses: 'user_id, updated_at, deleted_at',
       inbox_items: 'id, user_id, processed_at, updated_at, deleted_at',
       personal_rules: 'id, user_id, active, updated_at, deleted_at',
+    });
+    this.version(10).stores({
+      busy_blocks: 'id, user_id, logical_date, updated_at, deleted_at',
+      action_grants: 'user_id, updated_at',
     });
   }
 }

@@ -29,6 +29,8 @@ export type {
   LocalMealTemplate,
   LocalPersonalRule,
   LocalJournalEntry,
+  LocalBusyBlock,
+  LocalActionGrants,
   LocalRoutine,
   LocalRoutineCompletion,
   LocalServing,
@@ -86,6 +88,13 @@ export {
   tombstoneLocalCocoConversation,
   tombstoneLocalCocoMessage,
 } from './coco';
+export {
+  createLocalBusyBlock,
+  getLocalActionGrants,
+  listLocalBusyBlocks,
+  saveLocalActionGrant,
+  tombstoneLocalBusyBlock,
+} from './integrations';
 export {
   completeLocalRoutine,
   createLocalRoutine,

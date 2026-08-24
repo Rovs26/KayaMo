@@ -61,6 +61,16 @@ describe('day plan proposal', () => {
     expect(proposal.items.filter((item) => item.suggested).map((item) => item.id)).toEqual(['i1']);
   });
 
+  it('shrinks the cap when confirmed busy hours take the afternoon', () => {
+    const proposal = proposeDayPlan({
+      candidates,
+      capacity: 'great',
+      busyHours: 6,
+    });
+    expect(proposal.limit).toBe(1);
+    expect(proposal.items.filter((item) => item.suggested)).toHaveLength(1);
+  });
+
   it('treats sick and overwhelmed as a minimum unless Rescue is explicit', () => {
     expect(proposedPlanMode('sick')).toBe('minimum');
     expect(proposedPlanMode('overwhelmed', 'rescue')).toBe('rescue');

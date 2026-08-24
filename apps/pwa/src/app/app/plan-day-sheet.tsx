@@ -22,6 +22,9 @@ export function PlanDaySheet({
   returningAfterDays,
   estimatedCapacity = null,
   learnedNote = null,
+  busyHours = 0,
+  busyNote = null,
+  heading = null,
   initialMode = 'standard',
   onClose,
   onConfirm,
@@ -31,6 +34,9 @@ export function PlanDaySheet({
   returningAfterDays: number;
   estimatedCapacity?: DayCapacity | null;
   learnedNote?: string | null;
+  busyHours?: number;
+  busyNote?: string | null;
+  heading?: string | null;
   initialMode?: PlanMode;
   onClose: () => void;
   onConfirm: (input: {
@@ -61,9 +67,10 @@ export function PlanDaySheet({
       mode,
       yesterdayNote,
       returningAfterDays,
+      busyHours,
     });
     setKeepIds(next.items.filter((item) => item.suggested).map((item) => item.id));
-  }, [candidates, capacity, mode, returningAfterDays, yesterdayNote]);
+  }, [busyHours, candidates, capacity, mode, returningAfterDays, yesterdayNote]);
 
   const proposal = useMemo(
     () =>
@@ -74,8 +81,9 @@ export function PlanDaySheet({
         yesterdayNote,
         returningAfterDays,
         keepIds,
+        busyHours,
       }),
-    [candidates, capacity, keepIds, mode, returningAfterDays, yesterdayNote],
+    [busyHours, candidates, capacity, keepIds, mode, returningAfterDays, yesterdayNote],
   );
 
   const selected = proposal.items.filter((item) => keepIds.includes(item.id));
@@ -108,7 +116,7 @@ export function PlanDaySheet({
         <button type="button" className={styles.iconButton} aria-label="Back to Home" onClick={onClose}>
           <ArrowLeft size={21} />
         </button>
-        <h1>{PLAN_MODE_LABELS[mode]}</h1>
+        <h1>{heading ?? PLAN_MODE_LABELS[mode]}</h1>
       </div>
       <div className={styles.flowScroll}>
         {proposal.welcomeBack ? (
@@ -123,6 +131,7 @@ export function PlanDaySheet({
         {proposal.yesterdayNote ? (
           <p className={styles.mutedNote}>From last night: {proposal.yesterdayNote}</p>
         ) : null}
+        {busyNote ? <p className={styles.mutedNote}>{busyNote}</p> : null}
         {learnedNote ? <p className={styles.mutedNote}>{learnedNote}</p> : null}
         {estimatedCapacity && returningAfterDays < 2 ? (
           <p className={styles.mutedNote}>

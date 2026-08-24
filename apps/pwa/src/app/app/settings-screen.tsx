@@ -1,6 +1,10 @@
 'use client';
 
 import {
+  ACTION_LEVEL_LABELS,
+  type IntegrationStatus,
+} from '@kayamo/core';
+import {
   ArrowLeft,
   CaretRight,
   DeviceMobile,
@@ -25,6 +29,8 @@ export function SettingsScreen({
   onReminder,
   musMayReadIdentity,
   onMusMayReadIdentity,
+  integrations,
+  onGrant,
   bodyRows,
   dayRows,
   onEditBody,
@@ -39,6 +45,8 @@ export function SettingsScreen({
   onReminder: (enabled: boolean) => void;
   musMayReadIdentity: boolean;
   onMusMayReadIdentity: (enabled: boolean) => void;
+  integrations: IntegrationStatus[];
+  onGrant: (id: IntegrationStatus['id']) => void;
   bodyRows: Array<{ id: string; label: string; value: string }>;
   dayRows: Array<{ id: string; label: string; value: string }>;
   onEditBody: (id: string) => void;
@@ -116,6 +124,28 @@ export function SettingsScreen({
             <small>{reminderEnabled ? 'on' : 'off'}</small>
             <CaretRight size={15} />
           </button>
+        </div>
+
+        <p className={styles.eyebrow}>What Mus can do</p>
+        <div className={styles.settingsGroup}>
+          {integrations.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onGrant(row.id)}
+              aria-label={`${row.title}. ${row.connected ? 'Available here' : 'Not connected'}. ${ACTION_LEVEL_LABELS[row.level]}. ${row.restriction}`}
+            >
+              <span>{row.title}</span>
+              <small>
+                {row.connected ? 'Available here' : 'Not connected'} · {ACTION_LEVEL_LABELS[row.level]}
+              </small>
+              <CaretRight size={15} />
+            </button>
+          ))}
+          <p>
+            Tap to switch Suggest and Act with permission. Auto-manage is off. Calendar, health, and
+            wearables stay disconnected until a real native connection exists — nothing here is faked.
+          </p>
         </div>
 
         <p className={styles.eyebrow}>What Mus may read</p>

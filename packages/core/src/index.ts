@@ -123,6 +123,23 @@ export {
   type PlanMode,
 } from './day-plan';
 export {
+  ACTION_LEVEL_LABELS,
+  ACTION_LEVELS,
+  INTEGRATION_CATALOG,
+  INTEGRATION_IDS,
+  adjustedPlanLimit,
+  busyHoursFromBlocks,
+  hoursBetweenClock,
+  integrationStatuses,
+  resolveActionLevel,
+  voiceCaptureAvailability,
+  type ActionLevel,
+  type IntegrationAvailability,
+  type IntegrationDescriptor,
+  type IntegrationId,
+  type IntegrationStatus,
+} from './integrations';
+export {
   WORKOUT_VERSION_LABELS,
   WORKOUT_VERSIONS,
   bestE1rmFromSets,

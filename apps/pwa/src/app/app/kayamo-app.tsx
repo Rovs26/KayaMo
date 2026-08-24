@@ -20,6 +20,7 @@ import {
   PaperPlaneTilt,
   Pause,
   Plus,
+  Microphone,
   PushPin,
   Target,
   Tree,
@@ -35,11 +36,13 @@ import {
   DAY_CAPACITY_LABELS,
   actualMinutesBetween,
   busiestWeekday,
+  busyHoursFromBlocks,
   computeWeightTrend,
   dayTypeForToday,
   deadlineRisk,
   estimateCapacityFromHistory,
   forgottenItems,
+  integrationStatuses,
   LIFE_AREA_LABELS,
   daysBetweenLogical,
   goalFitsLifeArea,
@@ -51,14 +54,17 @@ import {
   suggestedPlanLimit,
   targetForDayType,
   trendChange,
+  voiceCaptureAvailability,
   weeklyResetDue,
   workoutVersionForCapacity,
   type AdaptivePattern,
+  type ActionLevel,
   type CompanionEventType,
   type DayCapacity,
   type DayIntent,
   type DayPlanCandidate,
   type GuidanceSnapshot,
+  type IntegrationId,
   type LifeArea,
   type MacroProgress,
   type NutritionProgress,
@@ -82,6 +88,7 @@ import {
   completeLocalEveningReflection,
   completeLocalGoalMilestone,
   completeLocalRoutine,
+  createLocalBusyBlock,
   createLocalCocoConversation,
   createLocalFocusSession,
   createLocalInboxItem,
@@ -91,6 +98,7 @@ import {
   finishLocalFocusSession,
   getLocalCompass,
   getLocalCompanionProgression,
+  getLocalActionGrants,
   getLocalDailyLoopPreferences,
   getLocalDailyPlan,
   getLocalFutureSelf,
@@ -104,6 +112,7 @@ import {
   listLocalGoals,
   listLocalGoalMilestones,
   listLocalInboxItems,
+  listLocalBusyBlocks,
   listLocalOpenTasks,
   listLocalPersonalRules,
   listLocalRoutineCompletions,
@@ -114,6 +123,7 @@ import {
   listLocalWorkoutHistory,
   logicalDateFromInstant,
   processLocalInboxItem,
+  saveLocalActionGrant,
   saveLocalCompass,
   saveLocalDailyLoopPreferences,
   saveLocalDailyPlan,
@@ -122,6 +132,8 @@ import {
   setLocalTaskCompleted,
   setLocalTaskScheduledFor,
   startLocalFocusSession,
+  tombstoneLocalBusyBlock,
+  type LocalBusyBlock,
   type LocalCocoMessage,
   type LocalCompanionEvent,
   type LocalCompass,
@@ -147,6 +159,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { SyncStatusBar } from './sync-status-bar';
 import { AddSheet } from './add-sheet';
 import { DayStrip, PastDayBanner, WeekBars } from './day-strip';
+import { CommitmentSheet } from './commitment-sheet';
 import { FirstRun } from './first-run';
 import { FoodRecordSheet } from './food-record-sheet';
 import { AddProductForm } from './foods/add/add-product-form';
@@ -179,6 +192,26 @@ function readDismissedPatternKeys(): string[] {
 function persistDismissedPatternKeys(keys: string[]) {
   localStorage.setItem(DISMISSED_PATTERNS_KEY, JSON.stringify(keys));
 }
+
+function speechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === 'undefined') return null;
+  const speechWindow = window as Window & {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
 
 /**
  * Screens pushed on top of a tab rather than routed to. Keeping them in the
@@ -370,6 +403,12 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [dismissedPatternKeys, setDismissedPatternKeys] = useState<string[]>(readDismissedPatternKeys);
   const [yesterdayNote, setYesterdayNote] = useState<string | null>(null);
   const [planSheet, setPlanSheet] = useState<PlanMode | null>(null);
+  const [planTargetDate, setPlanTargetDate] = useState<string | null>(null);
+  const [commitmentOpen, setCommitmentOpen] = useState(false);
+  const [busyBlocks, setBusyBlocks] = useState<LocalBusyBlock[]>([]);
+  const [actionGrants, setActionGrants] = useState<Partial<Record<IntegrationId, ActionLevel>>>({});
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
   const [lifeAreaOpen, setLifeAreaOpen] = useState<LifeArea | null>(null);
   const [workouts, setWorkouts] = useState<LocalWorkout[]>([]);
@@ -409,6 +448,23 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const lastPresence = presenceDates.at(-1) ?? null;
   const returningAfterDays = lastPresence ? daysBetweenLogical(lastPresence, todayLogical) : 0;
   const resetDue = weeklyResetDue(preferences?.last_weekly_reset_on ?? null, todayLogical);
+  const tomorrowLogical = shiftLogicalDate(todayLogical, 1);
+  const planDate = planTargetDate ?? logicalDate;
+  const planningTomorrow = planDate === tomorrowLogical;
+  const planBusyHours = busyHoursFromBlocks(
+    busyBlocks
+      .filter((row) => row.logical_date === planDate)
+      .map((row) => ({ startsAt: row.starts_at, endsAt: row.ends_at })),
+  );
+  const todayBusyBlocks = busyBlocks.filter((row) => row.logical_date === todayLogical);
+  const integrationRows = useMemo(
+    () =>
+      integrationStatuses(actionGrants, {
+        voiceAvailable,
+        notificationsEnabled: preferences?.notifications_enabled ?? false,
+      }),
+    [actionGrants, preferences?.notifications_enabled, voiceAvailable],
+  );
   const planCandidates = useMemo((): DayPlanCandidate[] => {
     const openToday = tasks.filter((task) => !task.completed_at);
     const nextMilestone = homeGoalMilestones.find((row) => !row.completed_at);
@@ -454,6 +510,39 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     }
     return items;
   }, [homeGoalMilestones, inboxItems, logicalDate, plan, tasks, workouts]);
+  const tomorrowCandidates = useMemo((): DayPlanCandidate[] => {
+    const leftover = openTasks.filter(
+      (task) => !task.completed_at && task.scheduled_for !== todayLogical,
+    );
+    const items: DayPlanCandidate[] = leftover.map((task) => ({
+      id: task.id,
+      title: task.title,
+      source: 'task' as const,
+      sourceId: task.id,
+    }));
+    const nextMilestone = homeGoalMilestones.find((row) => !row.completed_at);
+    if (
+      nextMilestone &&
+      !items.some((item) => item.title.trim().toLowerCase() === nextMilestone.title.trim().toLowerCase())
+    ) {
+      items.push({
+        id: nextMilestone.id,
+        title: nextMilestone.title,
+        source: 'goal',
+        sourceId: nextMilestone.id,
+      });
+    }
+    for (const item of inboxItems) {
+      items.push({
+        id: item.id,
+        title: item.content,
+        source: 'inbox',
+        sourceId: item.id,
+      });
+    }
+    return items;
+  }, [homeGoalMilestones, inboxItems, openTasks, todayLogical]);
+  const sheetCandidates = planningTomorrow ? tomorrowCandidates : planCandidates;
   const completedRoutineIds = useMemo(
     () => new Set(routineCompletions.map((row) => row.routine_id)),
     [routineCompletions],
@@ -567,7 +656,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const refresh = useCallback(async () => {
     const weekday = new Date(`${logicalDate}T12:00:00`).getDay();
     const yesterday = shiftLogicalDate(logicalDate, -1);
-    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules] = await Promise.all([
+    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules, nextBlocks, nextGrants] = await Promise.all([
       listLocalTasksForDate(userId, logicalDate),
       listLocalRoutines(userId, weekday),
       listLocalRoutines(userId),
@@ -589,6 +678,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       listLocalFocusHistory(userId),
       listLocalCompanionEvents(userId),
       listLocalPersonalRules(userId),
+      listLocalBusyBlocks(userId),
+      getLocalActionGrants(userId),
     ]);
     const nextMilestones = (
       await Promise.all(nextGoals.map((goal) => listLocalGoalMilestones(userId, goal.id)))
@@ -614,6 +705,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setFocusHistory(nextFocusHistory);
     setCompanionEvents(nextCompanionEvents);
     setPersonalRules(nextRules);
+    setBusyBlocks(nextBlocks);
+    setActionGrants(nextGrants);
     setYesterdayNote(priorPlan?.tomorrow_note ?? null);
     setScripture(await listLocalScripture({ faithEnabled: prefs?.faith_enabled ?? false }));
   }, [logicalDate, userId]);
@@ -632,6 +725,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       window.clearInterval(timer);
     };
   }, [refresh, userId]);
+
+  useEffect(() => {
+    setVoiceAvailable(voiceCaptureAvailability(Boolean(speechRecognitionCtor())) === 'available');
+  }, []);
 
   const loadGuidance = useCallback(async () => {
     const result = await fetchGuidanceSnapshot(userId, logicalDate);
@@ -767,6 +864,42 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     await refresh();
   }
 
+  async function captureVoice() {
+    const Ctor = speechRecognitionCtor();
+    if (!Ctor || voiceListening) {
+      setNotice('Voice capture is not available in this browser. Type it instead.');
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.lang = 'en-PH';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    setVoiceListening(true);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim() ?? '';
+      if (transcript) setInboxDraft((current) => (current ? `${current} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => {
+      setVoiceListening(false);
+      setNotice('Voice capture did not catch that. You can type it.');
+    };
+    recognition.onend = () => setVoiceListening(false);
+    try {
+      recognition.start();
+    } catch {
+      setVoiceListening(false);
+      setNotice('Voice capture is not available in this browser. Type it instead.');
+    }
+  }
+
+  async function cycleGrant(id: IntegrationId) {
+    const current = integrationRows.find((row) => row.id === id);
+    const nextLevel: ActionLevel =
+      current?.level === 'act_with_permission' ? 'suggest' : 'act_with_permission';
+    await saveLocalActionGrant({ userId, integrationId: id, level: nextLevel });
+    setActionGrants(await getLocalActionGrants(userId));
+  }
+
   async function choosePlan(event: React.FormEvent) {
     event.preventDefault();
     const label = planLabel.trim();
@@ -791,11 +924,12 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     kept: DayPlanCandidate[];
     customLabel: string | null;
   }) {
+    const targetDate = planTargetDate ?? logicalDate;
     const keptTaskIds = new Set<string>();
     let firstTask: LocalTask | null = null;
     for (const item of input.kept) {
       if (item.source === 'inbox') {
-        const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+        const task = await createLocalTask({ userId, title: item.title, scheduledFor: targetDate });
         keptTaskIds.add(task.id);
         firstTask ??= task;
         await processLocalInboxItem({ id: item.sourceId, userId });
@@ -808,13 +942,16 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           keptTaskIds.add(already.id);
           firstTask ??= already;
         } else {
-          const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+          const task = await createLocalTask({ userId, title: item.title, scheduledFor: targetDate });
           keptTaskIds.add(task.id);
           firstTask ??= task;
         }
       } else if (item.source === 'task') {
-        const existing = tasks.find((task) => task.id === item.sourceId);
+        const existing = tasks.find((task) => task.id === item.sourceId) ?? openTasks.find((task) => task.id === item.sourceId);
         if (existing) {
+          if (existing.scheduled_for !== targetDate) {
+            await setLocalTaskScheduledFor({ id: existing.id, userId, scheduledFor: targetDate });
+          }
           keptTaskIds.add(existing.id);
           firstTask ??= existing;
         } else {
@@ -829,42 +966,47 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           keptTaskIds.add(already.id);
           firstTask ??= already;
         } else {
-          const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+          const task = await createLocalTask({ userId, title: item.title, scheduledFor: targetDate });
           keptTaskIds.add(task.id);
           firstTask ??= task;
         }
       }
     }
     if (input.customLabel) {
-      const task = await createLocalTask({ userId, title: input.customLabel, scheduledFor: logicalDate });
+      const task = await createLocalTask({ userId, title: input.customLabel, scheduledFor: targetDate });
       keptTaskIds.add(task.id);
       firstTask ??= task;
     }
-    for (const task of tasks) {
-      if (task.completed_at || keptTaskIds.has(task.id) || task.scheduled_for !== logicalDate) {
-        continue;
+    if (!planningTomorrow) {
+      for (const task of tasks) {
+        if (task.completed_at || keptTaskIds.has(task.id) || task.scheduled_for !== targetDate) {
+          continue;
+        }
+        await setLocalTaskScheduledFor({ id: task.id, userId, scheduledFor: null });
       }
-      await setLocalTaskScheduledFor({ id: task.id, userId, scheduledFor: null });
     }
     const label = firstTask?.title ?? input.customLabel ?? input.kept[0]?.title ?? null;
     await saveLocalDailyPlan({
       userId,
-      logicalDate,
+      logicalDate: targetDate,
       actionKind: firstTask ? 'task' : label ? 'custom' : undefined,
       recordId: firstTask?.id ?? null,
       label,
-      completeMorning: true,
+      completeMorning: targetDate === todayLogical,
       capacity: input.capacity,
       dayIntent: input.intent,
       planMode: input.mode,
     });
     setPlanSheet(null);
+    setPlanTargetDate(null);
     setNotice(
       input.mode === 'rescue'
         ? 'Rescued. Only what you kept is on today.'
-        : returningAfterDays >= 2
-          ? 'Welcome back. One step is enough.'
-          : 'Plan confirmed. Mus will not change it without you.',
+        : targetDate !== todayLogical
+          ? 'Tomorrow is set. Nothing extra was dumped onto today.'
+          : returningAfterDays >= 2
+            ? 'Welcome back. One step is enough.'
+            : 'Plan confirmed. Mus will not change it without you.',
     );
     await refresh();
   }
@@ -899,6 +1041,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       return;
     }
     if (!label) {
+      setPlanTargetDate(todayLogical);
       setPlanSheet('standard');
       return;
     }
@@ -945,7 +1088,9 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       reflection,
     });
     setReflection('');
-    setNotice('Saved. Tomorrow’s plan can use this if you still want it.');
+    setNotice('Saved. You can confirm tomorrow from this, if you still want it.');
+    setPlanTargetDate(tomorrowLogical);
+    setPlanSheet('standard');
     await refresh();
   }
 
@@ -1108,14 +1253,42 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
         ) : null}
         {planSheet ? (
           <PlanDaySheet
-            candidates={planCandidates}
-            yesterdayNote={yesterdayNote}
-            returningAfterDays={returningAfterDays}
+            candidates={sheetCandidates}
+            yesterdayNote={planningTomorrow ? (plan?.tomorrow_note ?? yesterdayNote) : yesterdayNote}
+            returningAfterDays={planningTomorrow ? 0 : returningAfterDays}
             estimatedCapacity={insights.estimatedCapacity}
             learnedNote={insights.durationNote}
+            busyHours={planBusyHours}
+            busyNote={
+              planBusyHours > 0
+                ? `You already named ${planBusyHours} busy ${planBusyHours === 1 ? 'hour' : 'hours'} on this day. That is a manual commitment, not a calendar sync.`
+                : null
+            }
+            heading={planningTomorrow ? 'Plan Tomorrow' : null}
             initialMode={planSheet}
-            onClose={() => setPlanSheet(null)}
+            onClose={() => {
+              setPlanSheet(null);
+              setPlanTargetDate(null);
+            }}
             onConfirm={(input) => void confirmDayPlan(input)}
+          />
+        ) : null}
+        {commitmentOpen ? (
+          <CommitmentSheet
+            logicalDate={todayLogical}
+            onClose={() => setCommitmentOpen(false)}
+            onSave={async (input) => {
+              await createLocalBusyBlock({
+                userId,
+                title: input.title,
+                logicalDate: todayLogical,
+                startsAt: input.startsAt,
+                endsAt: input.endsAt,
+              });
+              setCommitmentOpen(false);
+              setNotice('Saved on this device. Mus did not read a calendar.');
+              await refresh();
+            }}
           />
         ) : null}
         {weeklyResetOpen ? (
@@ -1186,6 +1359,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
                 await refresh();
               })();
             }}
+            integrations={integrationRows}
+            onGrant={(id) => void cycleGrant(id)}
             bodyRows={[
               { id: 'sex', label: 'Sex', value: guidance?.profile.sex ?? 'not set' },
               { id: 'goal', label: 'Goal', value: guidance?.profile.goal ?? 'not set' },
@@ -1242,7 +1417,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
                 inboxItems={inboxItems}
                 onInboxDraft={setInboxDraft}
                 onCaptureInbox={(event) => void captureInbox(event)}
-                onPlan={() => setPlanSheet('standard')}
+                onPlan={() => {
+                  setPlanTargetDate(todayLogical);
+                  setPlanSheet('standard');
+                }}
                 onStart={() => void beginFocus()}
                 onGrove={() => selectTab('grove')}
                 onOpenGoal={() => setGoalFlow({ goalId: homeGoal?.id ?? null })}
@@ -1252,6 +1430,14 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
                 futureSelf={futureSelf?.statement ?? null}
                 welcomeBack={returningAfterDays >= 2}
                 resetDue={resetDue}
+                busyBlocks={todayBusyBlocks}
+                onAddCommitment={() => setCommitmentOpen(true)}
+                onRemoveCommitment={(id) => {
+                  void tombstoneLocalBusyBlock({ id, userId }).then(() => refresh());
+                }}
+                voiceAvailable={voiceAvailable}
+                voiceListening={voiceListening}
+                onVoice={() => void captureVoice()}
               />
               <TodayScreen
                 embedded
@@ -1272,7 +1458,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
                 onToggleTask={(task) => void toggleTask(task)}
                 onCompleteRoutine={(routine) => void completeRoutine(routine)}
                 onFocus={() => void beginFocus()}
-                onPlan={() => setPlanSheet('restructure')}
+                onPlan={() => {
+                  setPlanTargetDate(logicalDate);
+                  setPlanSheet('restructure');
+                }}
                 onChat={() => selectTab('mus')}
               />
             </>
@@ -1338,7 +1527,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               onEditEntry={setEditingFood}
               onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
               onAddGoal={() => setGoalFlow({ goalId: null, lifeArea: 'physical' })}
-              onPlanTraining={() => setPlanSheet('standard')}
+              onPlanTraining={() => {
+                setPlanTargetDate(todayLogical);
+                setPlanSheet('standard');
+              }}
               onChat={() => selectTab('mus')}
             />
             ) : (
@@ -1381,7 +1573,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           ) : null}
         </main>
 
-        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen ? (
+        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen && !commitmentOpen ? (
           <nav className={styles.tabbar} aria-label="Primary navigation" data-disabled={detail ? '1' : undefined}>
             {TABS.map(({ id, label, Icon }) => (
               <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => selectTab(id)}>
@@ -1708,6 +1900,12 @@ function HomeScreen({
   futureSelf,
   welcomeBack,
   resetDue,
+  busyBlocks,
+  onAddCommitment,
+  onRemoveCommitment,
+  voiceAvailable,
+  voiceListening,
+  onVoice,
 }: {
   date: Date;
   recommended: string | null;
@@ -1730,6 +1928,12 @@ function HomeScreen({
   futureSelf: string | null;
   welcomeBack: boolean;
   resetDue: boolean;
+  busyBlocks: LocalBusyBlock[];
+  onAddCommitment: () => void;
+  onRemoveCommitment: (id: string) => void;
+  voiceAvailable: boolean;
+  voiceListening: boolean;
+  onVoice: () => void;
 }) {
   const weeks = homeGoal
     ? Math.max(1, Math.floor(Math.max(0, Date.now() - Date.parse(homeGoal.created_at)) / 604_800_000) + 1)
@@ -1812,6 +2016,26 @@ function HomeScreen({
         </div>
       </section>
       <section className={styles.inboxCapture}>
+        <p className={styles.eyebrow}>Already committed · not a calendar sync</p>
+        {busyBlocks.length === 0 ? (
+          <p className={styles.emptyLine}>No hours named yet. Add class, shift, or an appointment if today is already taken.</p>
+        ) : (
+          <ul className={styles.plainList}>
+            {busyBlocks.map((row) => (
+              <li key={row.id}>
+                <button type="button" className={styles.textLink} onClick={() => onRemoveCommitment(row.id)}>
+                  {row.title}
+                  {row.starts_at && row.ends_at ? ` · ${row.starts_at}–${row.ends_at}` : ''}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button className={styles.secondaryButton} type="button" onClick={onAddCommitment}>
+          Add hours
+        </button>
+      </section>
+      <section className={styles.inboxCapture}>
         <p className={styles.eyebrow}>Life Inbox</p>
         <h3>Park it here</h3>
         <p className={styles.muted}>Private by default. Mus cannot read this until you allow it.</p>
@@ -1824,9 +2048,23 @@ function HomeScreen({
             onChange={(event) => onInboxDraft(event.target.value)}
             placeholder="A thought, a task, something you do not want to lose…"
           />
-          <button className={styles.secondaryButton} type="submit" disabled={!inboxDraft.trim()}>
-            Save privately
-          </button>
+          <div className={styles.buttonRow}>
+            <button className={styles.secondaryButton} type="submit" disabled={!inboxDraft.trim()}>
+              Save privately
+            </button>
+            {voiceAvailable ? (
+              <button
+                className={styles.secondaryButton}
+                type="button"
+                onClick={onVoice}
+                disabled={voiceListening}
+              >
+                <Microphone size={16} /> {voiceListening ? 'Listening…' : 'Speak'}
+              </button>
+            ) : (
+              <p className={styles.mutedNote}>Voice capture is not available in this browser.</p>
+            )}
+          </div>
         </form>
         {inboxItems.length > 0 ? (
           <p className={styles.inboxCount}>
