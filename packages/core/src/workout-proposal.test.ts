@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExerciseSessionPerformance } from './progression';
-import { proposeFromSessions, proposeExerciseLoad } from './workout-proposal';
+import { proposeFromSessions, proposeExerciseLoad, scaleWorkoutSetCount, selectWorkoutExercises, workoutVersionForCapacity } from './workout-proposal';
 import type { ProgressionAnalysis } from './progression';
 
 function holdAnalysis(overrides: Partial<ProgressionAnalysis> = {}): ProgressionAnalysis {
@@ -88,5 +88,16 @@ describe('proposeFromSessions', () => {
     expect(plan.setCount).toBe(3);
     expect(plan.reps).toBe(8);
     expect(plan.weightKg).toBe(52.5);
+  });
+});
+
+describe('workout versions', () => {
+  it('shortens a low-capacity day to a minimum session', () => {
+    expect(workoutVersionForCapacity('overwhelmed')).toBe('minimum');
+    expect(workoutVersionForCapacity('normal', 'recovery')).toBe('minimum');
+    expect(workoutVersionForCapacity('great')).toBe('full');
+    expect(scaleWorkoutSetCount(4, 'minimum')).toBe(2);
+    expect(selectWorkoutExercises(['squat', 'bench', 'row'], 'minimum')).toEqual(['squat']);
+    expect(selectWorkoutExercises(['squat', 'bench'], 'standard')).toEqual(['squat', 'bench']);
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { COMPANION_EVENT_POINTS } from '@kayamo/core';
+import { COMPANION_EVENT_POINTS, LIFE_AREA_LABELS, LIFE_AREAS, suggestLifeArea, type LifeArea } from '@kayamo/core';
 import {
   createLocalGoal,
   createLocalGoalMilestone,
@@ -67,6 +67,7 @@ export function GoalFlow({
   goals,
   todayTasks,
   initialGoalId,
+  initialLifeArea = null,
   onClose,
   onChat,
   onGoToday,
@@ -79,6 +80,7 @@ export function GoalFlow({
   goals: LocalGoal[];
   todayTasks: LocalTask[];
   initialGoalId: string | null;
+  initialLifeArea?: LifeArea | null;
   onClose: () => void;
   onChat: () => void;
   onGoToday: () => void;
@@ -91,6 +93,7 @@ export function GoalFlow({
   const [why, setWhy] = useState('');
   const [doneLooks, setDoneLooks] = useState('');
   const [firstStep, setFirstStep] = useState('');
+  const [lifeArea, setLifeArea] = useState<LifeArea | null>(initialLifeArea);
   const [milestones, setMilestones] = useState<LocalGoalMilestone[]>([]);
   const [setdownOpen, setSetdownOpen] = useState(false);
   const [changingNext, setChangingNext] = useState(false);
@@ -138,6 +141,7 @@ export function GoalFlow({
     setWhy('');
     setDoneLooks('');
     setFirstStep('');
+    setLifeArea(initialLifeArea ?? suggestLifeArea(seed));
     setStep('draft');
   }
 
@@ -151,6 +155,7 @@ export function GoalFlow({
         title: heading,
         description: why.trim() || null,
         origin: 'user',
+        lifeArea,
       });
       let order = 0;
       const stepTitle = firstStep.trim();
@@ -304,6 +309,20 @@ export function GoalFlow({
               <span>First step, today-sized</span>
               <textarea value={firstStep} onChange={(event) => setFirstStep(event.target.value)} rows={2} />
             </label>
+          </div>
+          <p className={styles.eyebrow}>Life area · optional</p>
+          <div className={styles.choiceRow}>
+            {LIFE_AREAS.map((area) => (
+              <button
+                key={area}
+                type="button"
+                className={lifeArea === area ? styles.choiceOn : styles.choiceOff}
+                aria-pressed={lifeArea === area}
+                onClick={() => setLifeArea((current) => (current === area ? null : area))}
+              >
+                {LIFE_AREA_LABELS[area]}
+              </button>
+            ))}
           </div>
           <div className={styles.goalHint}>
             <Info size={19} />

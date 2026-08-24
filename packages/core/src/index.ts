@@ -80,6 +80,10 @@ export {
 export {
   LIFE_AREA_LABELS,
   LIFE_AREAS,
+  goalFitsLifeArea,
+  isLifeArea,
+  listedLifeAreas,
+  suggestLifeArea,
   type LifeArea,
 } from './identity';
 export {
@@ -103,12 +107,18 @@ export {
   type PlanMode,
 } from './day-plan';
 export {
+  WORKOUT_VERSION_LABELS,
+  WORKOUT_VERSIONS,
   bestE1rmFromSets,
   proposeExerciseLoad,
   proposeFromSessions,
+  scaleWorkoutSetCount,
+  selectWorkoutExercises,
   sessionVolumeKg,
+  workoutVersionForCapacity,
   type LastWorkingSet,
   type ProposedExercisePlan,
+  type WorkoutVersion,
 } from './workout-proposal';
 
 export type DailyTaskContext = {

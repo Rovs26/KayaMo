@@ -66,6 +66,20 @@ describe('offline journey and companion growth', () => {
     expect(progression.totalPoints).toBe(70);
   });
 
+  it('stores an optional life area on a goal without inventing one', async () => {
+    const tagged = await createLocalGoal({
+      userId: 'user-a',
+      title: 'Squat a hundred kilos',
+      lifeArea: 'physical',
+    });
+    const plain = await createLocalGoal({
+      userId: 'user-a',
+      title: 'Finish the thesis chapter',
+    });
+    expect(tagged.life_area).toBe('physical');
+    expect(plain.life_area).toBeNull();
+  });
+
   it('rewards a return after a gap without creating a negative missed-day event', async () => {
     const habit = await createLocalHabit({ userId: 'user-a', title: 'Morning prayer' });
     await completeLocalHabit({

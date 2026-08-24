@@ -18,6 +18,7 @@ import {
   GOAL_KINDS,
   GOAL_STATUSES,
   HABIT_FREQUENCIES,
+  LIFE_AREAS,
   TASK_ORIGINS,
   sqlIn,
 } from './constants';
@@ -35,6 +36,7 @@ export const goals = pgTable(
     target_date: date('target_date', { mode: 'string' }),
     completed_at: timestamp('completed_at', { withTimezone: true, mode: 'string' }),
     origin: text('origin').notNull().default('user'),
+    life_area: text('life_area'),
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
@@ -52,6 +54,10 @@ export const goals = pgTable(
     check(
       'goals_origin_check',
       sql`${table.origin} in (${sql.raw(sqlIn(TASK_ORIGINS))})`,
+    ),
+    check(
+      'goals_life_area_check',
+      sql`${table.life_area} is null or ${table.life_area} in (${sql.raw(sqlIn(LIFE_AREAS))})`,
     ),
     check(
       'goals_completed_state_check',

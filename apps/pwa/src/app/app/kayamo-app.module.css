@@ -1429,7 +1429,8 @@
 
 .lifeShelf {
   display: flex;
-  margin-top: 0.55rem;
+  width: calc(100% - 28px);
+  margin: 10px 14px 0;
   padding: 0.85rem 1rem;
   border: 1px dashed var(--km-hairline);
   border-radius: 1rem;
@@ -1704,6 +1705,13 @@
 .appScreenHeader p {
   margin-top: 3px;
   font-size: 13.5px;
+}
+
+.appScreenHeader .textLink {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 12.5px;
 }
 
 .companionButton {
@@ -3570,6 +3578,10 @@ ul.plainList li:last-child {
 .choiceColumn {
   display: flex;
   gap: 8px;
+}
+
+.choiceRow {
+  flex-wrap: wrap;
 }
 
 .choiceColumn {

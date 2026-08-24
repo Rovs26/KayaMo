@@ -35,18 +35,21 @@ import {
   computeWeightTrend,
   dayTypeForToday,
   LIFE_AREA_LABELS,
-  LIFE_AREAS,
   daysBetweenLogical,
+  goalFitsLifeArea,
+  listedLifeAreas,
   macroProgress,
   nutritionProgress,
   targetForDayType,
   trendChange,
   weeklyResetDue,
+  workoutVersionForCapacity,
   type CompanionEventType,
   type DayCapacity,
   type DayIntent,
   type DayPlanCandidate,
   type GuidanceSnapshot,
+  type LifeArea,
   type MacroProgress,
   type NutritionProgress,
   type NutritionTargetView,
@@ -300,7 +303,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [editingFood, setEditingFood] = useState<LocalFoodEntry | null>(null);
   const [settingsField, setSettingsField] = useState<string | null>(null);
   const [presenceDates, setPresenceDates] = useState<string[]>([]);
-  const [goalFlow, setGoalFlow] = useState<{ goalId: string | null } | null>(null);
+  const [goalFlow, setGoalFlow] = useState<{ goalId: string | null; lifeArea?: LifeArea | null } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [theme, setTheme] = useState<Theme>('day');
   const [themeReady, setThemeReady] = useState(false);
@@ -328,6 +331,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [yesterdayNote, setYesterdayNote] = useState<string | null>(null);
   const [planSheet, setPlanSheet] = useState<PlanMode | null>(null);
   const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
+  const [lifeAreaOpen, setLifeAreaOpen] = useState<LifeArea | null>(null);
   const [workouts, setWorkouts] = useState<LocalWorkout[]>([]);
   const [weights, setWeights] = useState<LocalWeightLog[]>([]);
   const [preferences, setPreferences] = useState<LocalDailyLoopPreference | null>(null);
@@ -393,8 +397,23 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
         sourceId: item.id,
       });
     }
+    const trainedOnView = workouts.some(
+      (workout) => workout.logical_date === logicalDate && workout.status !== 'abandoned',
+    );
+    if (
+      !trainedOnView &&
+      !items.some((item) => /train|shorter session/i.test(item.title))
+    ) {
+      const version = workoutVersionForCapacity(plan?.capacity as DayCapacity | null, plan?.day_intent as DayIntent | null);
+      items.push({
+        id: 'workout:today',
+        title: version === 'minimum' ? 'A shorter session' : 'Train today',
+        source: 'workout',
+        sourceId: 'today',
+      });
+    }
     return items;
-  }, [homeGoalMilestones, inboxItems, tasks]);
+  }, [homeGoalMilestones, inboxItems, logicalDate, plan, tasks, workouts]);
   const completedRoutineIds = useMemo(
     () => new Set(routineCompletions.map((row) => row.routine_id)),
     [routineCompletions],
@@ -648,6 +667,19 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
         } else {
           keptTaskIds.add(item.sourceId);
         }
+      } else if (item.source === 'workout' || item.source === 'habit') {
+        const already = tasks.find(
+          (task) =>
+            !task.completed_at && task.title.trim().toLowerCase() === item.title.trim().toLowerCase(),
+        );
+        if (already) {
+          keptTaskIds.add(already.id);
+          firstTask ??= already;
+        } else {
+          const task = await createLocalTask({ userId, title: item.title, scheduledFor: logicalDate });
+          keptTaskIds.add(task.id);
+          firstTask ??= task;
+        }
       }
     }
     if (input.customLabel) {
@@ -817,6 +849,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     // added, so a later back gesture does not walk back into it.
     if (detailStack.length) window.history.go(-detailStack.length);
     if (nextTab === tab) return;
+    if (nextTab !== 'life') setLifeAreaOpen(null);
     if (mainRef.current) tabScrollPositions.current[tab] = mainRef.current.scrollTop;
     setTab(nextTab);
     window.requestAnimationFrame(() => {
@@ -891,6 +924,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             dayStartsAt={dayStartsAt}
             now={now}
             activeWorkout={activeWorkout}
+            version={workoutVersionForCapacity(plan?.capacity as DayCapacity | null, plan?.day_intent as DayIntent | null)}
             onClose={() => setWorkoutOpen(false)}
             onFinished={async () => {
               await refresh();
@@ -906,6 +940,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             goals={goals}
             todayTasks={tasks}
             initialGoalId={goalFlow.goalId}
+            initialLifeArea={goalFlow.lifeArea}
             onClose={() => setGoalFlow(null)}
             onChat={() => {
               setGoalFlow(null);
@@ -1086,10 +1121,12 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             />
           ) : null}
           {!detail && tab === 'life' ? (
+            lifeAreaOpen === 'physical' ? (
             <HealthScreen
               entries={foodEntries}
               kcalProgress={kcalProgress}
               macros={macros}
+              fiberG={foodEntries.reduce((sum, entry) => sum + Number(entry.fiber_g), 0)}
               locale={locale}
               todayLogical={todayLogical}
               viewLogicalDate={viewLogicalDate}
@@ -1104,6 +1141,16 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               guidance={guidance}
               guidanceStale={guidanceStale}
               dayType={dayType}
+              physicalGoals={goals.filter(
+                (goal) =>
+                  goal.status === 'active' &&
+                  goalFitsLifeArea(goal.title, goal.life_area, 'physical'),
+              )}
+              trainingOnPlan={Boolean(
+                plan?.selected_label_snapshot &&
+                  /train|session|workout/i.test(plan.selected_label_snapshot),
+              ) || tasks.some((task) => !task.completed_at && /train|shorter session/i.test(task.title))}
+              onBack={() => setLifeAreaOpen(null)}
               onOpenWorkout={openWorkout}
               onLogWeight={() => setWeightOpen(true)}
               onOpenTargets={() => setTargetsOpen(true)}
@@ -1112,8 +1159,23 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               onLogFood={() => pushDetail({ kind: 'food-search' })}
               onScanBarcode={() => pushDetail({ kind: 'food-barcode' })}
               onEditEntry={setEditingFood}
+              onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
+              onAddGoal={() => setGoalFlow({ goalId: null, lifeArea: 'physical' })}
+              onPlanTraining={() => setPlanSheet('standard')}
               onChat={() => selectTab('mus')}
             />
+            ) : (
+            <LifeScreen
+              areas={listedLifeAreas(compass?.active_areas)}
+              physicalSummary={
+                kcalProgress.targetKcal === null
+                  ? `${foodEntries.length} ${foodEntries.length === 1 ? 'food log' : 'food logs'} today`
+                  : `${kcalProgress.eatenKcal} of ${kcalProgress.targetKcal} kcal`
+              }
+              onOpenPhysical={() => setLifeAreaOpen('physical')}
+              onChat={() => selectTab('mus')}
+            />
+            )
           ) : null}
           {!detail && tab === 'grove' ? (
             <JourneyScreen
@@ -1402,10 +1464,25 @@ function CompanionButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function AppScreenHeader({ title, subtitle, onChat }: { title: string; subtitle: string; onChat: () => void }) {
+function AppScreenHeader({
+  title,
+  subtitle,
+  onChat,
+  onBack,
+}: {
+  title: string;
+  subtitle: string;
+  onChat: () => void;
+  onBack?: () => void;
+}) {
   return (
     <header className={styles.appScreenHeader}>
       <div>
+        {onBack ? (
+          <button type="button" className={styles.textLink} onClick={onBack}>
+            Life areas
+          </button>
+        ) : null}
         <h2>{title}</h2>
         <p>{subtitle}</p>
         <SyncStatusBar className={styles.syncChip} />
@@ -1697,10 +1774,53 @@ function TodayScreen({
   );
 }
 
+function LifeScreen({
+  areas,
+  physicalSummary,
+  onOpenPhysical,
+  onChat,
+}: {
+  areas: LifeArea[];
+  physicalSummary: string;
+  onOpenPhysical: () => void;
+  onChat: () => void;
+}) {
+  return (
+    <div className={`${styles.screen} ${styles.listScreen}`}>
+      <AppScreenHeader
+        title="Life"
+        subtitle="Physical Self is the deep slice. Other areas stay quiet shelves until we build them."
+        onChat={onChat}
+      />
+      {areas.map((area) =>
+        area === 'physical' ? (
+          <button type="button" className={styles.workingToward} key={area} onClick={onOpenPhysical}>
+            <Heartbeat size={22} />
+            <span>
+              <b>Life area</b>
+              <strong>Physical Self</strong>
+              <small>{physicalSummary}</small>
+            </span>
+            <CaretRight size={16} />
+          </button>
+        ) : (
+          <div key={area} className={styles.lifeShelf}>
+            <span>
+              <strong>{LIFE_AREA_LABELS[area]}</strong>
+              <small>Set up later. Hidden areas stay gone without rebuilding the app.</small>
+            </span>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 function HealthScreen({
   entries,
   kcalProgress,
   macros,
+  fiberG,
   locale,
   todayLogical,
   viewLogicalDate,
@@ -1715,6 +1835,8 @@ function HealthScreen({
   guidance,
   guidanceStale,
   dayType,
+  physicalGoals,
+  trainingOnPlan,
   onOpenWorkout,
   onLogWeight,
   onOpenTargets,
@@ -1723,11 +1845,16 @@ function HealthScreen({
   onLogFood,
   onScanBarcode,
   onEditEntry,
+  onOpenGoal,
+  onAddGoal,
+  onPlanTraining,
   onChat,
+  onBack,
 }: {
   entries: ReturnType<typeof useLiveFoodEntries>;
   kcalProgress: NutritionProgress;
   macros: MacroProgress[];
+  fiberG: number;
   locale: Locale;
   todayLogical: string;
   viewLogicalDate: string;
@@ -1750,7 +1877,13 @@ function HealthScreen({
   onLogFood: () => void;
   onScanBarcode: () => void;
   onEditEntry: (entry: LocalFoodEntry) => void;
+  physicalGoals: LocalGoal[];
+  trainingOnPlan: boolean;
+  onOpenGoal: (goal: LocalGoal) => void;
+  onAddGoal: () => void;
+  onPlanTraining: () => void;
   onChat: () => void;
+  onBack: () => void;
 }) {
   const orderedWeights = [...weights]
     .sort((a, b) => a.measured_on.localeCompare(b.measured_on))
@@ -1774,12 +1907,34 @@ function HealthScreen({
   return (
     <div className={`${styles.screen} ${styles.listScreen}`}>
       <AppScreenHeader
-        title="Life"
-        subtitle={viewLogicalDate === todayLogical ? 'Physical Self first. Numbers come from your records, not from Mus.' : 'You are looking at a past day.'}
+        title="Physical Self"
+        subtitle={viewLogicalDate === todayLogical ? 'Food and gym live here. Numbers come from your records, not from Mus.' : 'You are looking at a past day.'}
         onChat={onChat}
+        onBack={onBack}
       />
       <DayStrip todayLogical={todayLogical} selected={viewLogicalDate} marked={markedDays} onSelect={onSelectDay} />
       <PastDayBanner visible={viewLogicalDate !== todayLogical} />
+
+      {physicalGoals.map((goal) => (
+        <button type="button" className={styles.workingToward} key={goal.id} onClick={() => onOpenGoal(goal)}>
+          <Compass size={22} />
+          <span>
+            <b>Working toward</b>
+            <strong>{goal.title}</strong>
+            <small>Lives with this area, and on Goals.</small>
+          </span>
+          <CaretRight size={16} />
+        </button>
+      ))}
+      <button type="button" className={styles.workingToward} onClick={onAddGoal}>
+        <Heartbeat size={22} />
+        <span>
+          <b>Physical goal</b>
+          <strong>Add one that belongs here</strong>
+          <small>Optional. Food and training still work without it.</small>
+        </span>
+        <CaretRight size={16} />
+      </button>
 
       <section className={styles.healthSection}>
         <p className={styles.eyebrow}>Food · {viewLogicalDate === todayLogical ? 'today' : viewLogicalDate}</p>
@@ -1826,6 +1981,9 @@ function HealthScreen({
               </button>
             )}
           </div>
+          {fiberG > 0 ? (
+            <p className={styles.mutedNote}>{Math.round(fiberG)}g fiber logged. No fiber target — we do not invent one.</p>
+          ) : null}
         </div>
         {kcalProgress.targetKcal === null ? (
           <GuidanceSetupNote guidance={guidance} onOpenTargets={onOpenTargets} />
@@ -1932,29 +2090,23 @@ function HealthScreen({
       <section className={styles.healthSection}>
         <p className={styles.eyebrow}>Fitness</p>
         <div className={styles.trainingCard}>
-          <h3>{activeWorkout ? 'Workout in progress' : 'Ready when you are'}</h3>
+          <h3>{activeWorkout ? 'Workout in progress' : trainingOnPlan ? 'Training is on today' : 'Ready when you are'}</h3>
           <p>{activeWorkout ? 'This session is saved locally and survives a reconnect.' : `${workouts.filter((row) => row.status === 'completed').length} completed workouts in history.`}</p>
           <div>
             <button type="button" onClick={onOpenWorkout}>
               {activeWorkout ? 'Continue workout' : 'Start workout'}
             </button>
+            {trainingOnPlan || activeWorkout ? null : (
+              <button type="button" className={styles.secondaryButton} onClick={onPlanTraining}>
+                Put on today
+              </button>
+            )}
             <span className={styles.secondaryActionLabel}>{workouts.length} logged</span>
           </div>
         </div>
       </section>
 
       <p className={styles.safetyNote}>Health progress never earns rewards for eating less, losing weight, or training through pain.</p>
-      <section className={styles.lifeShelves}>
-        <p className={styles.eyebrow}>Other areas</p>
-        {LIFE_AREAS.filter((area) => area !== 'physical').map((area) => (
-          <div key={area} className={styles.lifeShelf}>
-            <span>
-              <strong>{LIFE_AREA_LABELS[area]}</strong>
-              <small>Set up later. Hidden areas stay gone without rebuilding the app.</small>
-            </span>
-          </div>
-        ))}
-      </section>
     </div>
   );
 }

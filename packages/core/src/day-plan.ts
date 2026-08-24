@@ -39,7 +39,7 @@ export const PLAN_MODE_LABELS: Record<PlanMode, string> = {
 export type DayPlanCandidate = {
   id: string;
   title: string;
-  source: 'task' | 'inbox' | 'goal' | 'habit';
+  source: 'task' | 'inbox' | 'goal' | 'habit' | 'workout';
   sourceId: string;
 };
 
@@ -113,6 +113,7 @@ function reasonFor(
   if (candidate.source === 'goal') return 'Next step on the goal you confirmed.';
   if (candidate.source === 'inbox') return 'From Life Inbox, after you confirm it.';
   if (candidate.source === 'habit') return 'A gentle repeat, not a streak to protect.';
+  if (candidate.source === 'workout') return 'Training on today, if you still want it.';
   if (input.yesterdayNote && index === 0) {
     return 'Carried from last night’s reflection, if you still want it.';
   }

@@ -5,8 +5,12 @@ import {
   calculatePlatesPerSide,
   COMPANION_EVENT_POINTS,
   proposeFromSessions,
+  scaleWorkoutSetCount,
+  selectWorkoutExercises,
   sessionVolumeKg,
+  WORKOUT_VERSION_LABELS,
   type ExerciseSessionPerformance,
+  type WorkoutVersion,
 } from '@kayamo/core';
 import {
   clearLocalRestTimer,
@@ -85,9 +89,10 @@ function groupSets(rows: LocalWorkoutSet[]) {
   }));
 }
 
-async function buildProposal(userId: string): Promise<{
+async function buildProposal(userId: string, version: WorkoutVersion): Promise<{
   title: string;
   deload: boolean;
+  version: WorkoutVersion;
   exercises: DraftExercise[];
 }> {
   const history = (await listLocalWorkoutHistory(userId)).filter((row) => row.status === 'completed');
@@ -151,10 +156,22 @@ async function buildProposal(userId: string): Promise<{
       })),
     });
   }
+  const picked = selectWorkoutExercises(exercises, version).map((exercise) => {
+    const setCount = scaleWorkoutSetCount(exercise.sets.length, version);
+    return {
+      ...exercise,
+      planLabel: `${setCount} sets × ${exercise.sets[0]?.reps ?? 8} reps`,
+      sets: exercise.sets.slice(0, setCount),
+    };
+  });
   return {
-    title: last?.notes?.trim() || 'Today’s session',
+    title:
+      version === 'minimum'
+        ? 'A shorter session'
+        : last?.notes?.trim() || 'Today’s session',
     deload,
-    exercises,
+    version,
+    exercises: picked,
   };
 }
 
@@ -191,6 +208,7 @@ export function WorkoutFlow({
   dayStartsAt,
   now,
   activeWorkout,
+  version = 'standard',
   onClose,
   onFinished,
 }: {
@@ -199,6 +217,7 @@ export function WorkoutFlow({
   dayStartsAt: string;
   now: number;
   activeWorkout: LocalWorkout | null;
+  version?: WorkoutVersion;
   onClose: () => void;
   onFinished: () => Promise<void> | void;
 }) {
@@ -241,7 +260,7 @@ export function WorkoutFlow({
         await loadActive(activeWorkout);
         return;
       }
-      const proposal = await buildProposal(userId);
+      const proposal = await buildProposal(userId, version);
       if (cancelled) return;
       setTitle(proposal.title);
       setDeload(proposal.deload);
@@ -250,7 +269,7 @@ export function WorkoutFlow({
     return () => {
       cancelled = true;
     };
-  }, [activeWorkout, loadActive, userId]);
+  }, [activeWorkout, loadActive, userId, version]);
 
   const restLeft = restEndsAt ? Math.max(0, Math.ceil((Date.parse(restEndsAt) - now) / 1000)) : 0;
   const restActive = Boolean(restEndsAt) && restLeft > 0;
@@ -417,7 +436,7 @@ export function WorkoutFlow({
       <div className={styles.flowOverlay}>
         <div className={styles.flowWash} aria-hidden="true" />
         <div className={styles.flowTop}>
-          <button type="button" className={styles.iconButton} aria-label="Back to Health" onClick={onClose}>
+          <button type="button" className={styles.iconButton} aria-label="Back to Physical Self" onClick={onClose}>
             <ArrowLeft size={21} />
           </button>
           <span className={styles.eyebrow}>workout</span>
@@ -425,7 +444,7 @@ export function WorkoutFlow({
         <div className={styles.flowScroll}>
           <h1 className={styles.flowTitle}>{title}, if you want it.</h1>
           <p className={styles.flowLead}>
-            Built from your last sessions. Nothing is recorded until you confirm each set.
+            {WORKOUT_VERSION_LABELS[version]}. Built from your last sessions. Nothing is recorded until you confirm each set.
           </p>
           {deload ? (
             <div className={styles.engineBanner}>

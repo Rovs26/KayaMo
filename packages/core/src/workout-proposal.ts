@@ -1,9 +1,40 @@
+import type { DayCapacity, DayIntent } from './day-plan';
 import {
   analyzeExerciseProgression,
   estimateSetE1rm,
   type ExerciseSessionPerformance,
   type ProgressionAnalysis,
 } from './progression';
+
+export const WORKOUT_VERSIONS = ['minimum', 'standard', 'full'] as const;
+export type WorkoutVersion = (typeof WORKOUT_VERSIONS)[number];
+
+export const WORKOUT_VERSION_LABELS: Record<WorkoutVersion, string> = {
+  minimum: 'Minimum session',
+  standard: 'Standard session',
+  full: 'Full session',
+};
+
+export function workoutVersionForCapacity(
+  capacity: DayCapacity | null | undefined,
+  intent?: DayIntent | null,
+): WorkoutVersion {
+  if (capacity === 'sick' || capacity === 'overwhelmed') return 'minimum';
+  if (capacity === 'low' || intent === 'recovery') return 'minimum';
+  if (capacity === 'great') return 'full';
+  return 'standard';
+}
+
+export function scaleWorkoutSetCount(setCount: number, version: WorkoutVersion): number {
+  if (version === 'minimum') return Math.max(1, Math.ceil(setCount / 2));
+  return Math.max(1, setCount);
+}
+
+export function selectWorkoutExercises<T>(exercises: readonly T[], version: WorkoutVersion): T[] {
+  if (exercises.length === 0) return [];
+  if (version === 'minimum') return [exercises[0]!];
+  return [...exercises];
+}
 
 export type LastWorkingSet = {
   weightKg: number;

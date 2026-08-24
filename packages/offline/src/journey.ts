@@ -85,6 +85,7 @@ export async function createLocalGoal(input: {
   startsOn?: string | null;
   targetDate?: string | null;
   origin?: LocalGoal['origin'];
+  lifeArea?: LocalGoal['life_area'];
   id?: string;
 }): Promise<LocalGoal> {
   const at = nowIso();
@@ -99,6 +100,7 @@ export async function createLocalGoal(input: {
     target_date: input.targetDate ?? null,
     completed_at: null,
     origin: input.origin ?? 'user',
+    life_area: input.lifeArea ?? null,
     created_at: at,
     updated_at: at,
     server_updated_at: at,
