@@ -161,6 +161,26 @@ export {
   type IntegrationStatus,
 } from './integrations';
 export {
+  ALWAYS_WITHHELD,
+  CIRCLE_KINDS,
+  CIRCLE_KIND_LABELS,
+  DEFAULT_FACETS,
+  SHARE_FACETS,
+  SHARE_FACET_LABELS,
+  compileCircleShare,
+  countWeekWorkouts,
+  defaultFacetsFor,
+  inCurrentWeek,
+  isCircleKind,
+  isShareFacet,
+  sanitizeFacets,
+  weekWindowStart,
+  type CircleKind,
+  type CircleShareInput,
+  type CircleSharePreview,
+  type ShareFacet,
+} from './circles';
+export {
   WORKOUT_VERSION_LABELS,
   WORKOUT_VERSIONS,
   bestE1rmFromSets,

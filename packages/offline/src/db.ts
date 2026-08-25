@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { GuidanceSnapshot, StoryKind } from '@kayamo/core';
+import type { CircleKind, GuidanceSnapshot, ShareFacet, StoryKind } from '@kayamo/core';
 import type {
   AgentMemory,
   CocoConversation,
@@ -130,6 +130,24 @@ export type LocalGroveChapter = {
   deleted_at: string | null;
 };
 
+export type LocalCircle = {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: CircleKind;
+  facets: ShareFacet[];
+  selected_goal_ids: string[];
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type LocalSocialPrefs = {
+  user_id: string;
+  enabled: boolean;
+  updated_at: string;
+};
+
 export type SyncableTable =
   | 'food_entries'
   | 'weight_logs'
@@ -227,6 +245,8 @@ export class KayaMoDB extends Dexie {
   action_grants!: Table<LocalActionGrants, string>;
   life_story_entries!: Table<LocalLifeStoryEntry, string>;
   grove_chapters!: Table<LocalGroveChapter, string>;
+  circles!: Table<LocalCircle, string>;
+  social_prefs!: Table<LocalSocialPrefs, string>;
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
   sync_queue!: Table<SyncQueueItem, string>;
 
@@ -306,6 +326,10 @@ export class KayaMoDB extends Dexie {
     this.version(11).stores({
       life_story_entries: 'id, user_id, happened_on, updated_at, deleted_at',
       grove_chapters: 'id, user_id, closed_on, updated_at, deleted_at',
+    });
+    this.version(12).stores({
+      circles: 'id, user_id, kind, updated_at, deleted_at',
+      social_prefs: 'user_id, updated_at',
     });
   }
 }

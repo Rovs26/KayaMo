@@ -42,6 +42,8 @@ export function SettingsScreen({
   onComplexity,
   onExportArchive,
   onExportEvidence,
+  onOpenCircles,
+  socialEnabled,
 }: {
   email: string;
   theme: Theme;
@@ -62,6 +64,8 @@ export function SettingsScreen({
   onComplexity: (level: ComplexityLevel) => void;
   onExportArchive: () => void;
   onExportEvidence: () => void;
+  onOpenCircles: () => void;
+  socialEnabled: boolean;
 }) {
   return (
     <div className={`${styles.flowOverlay} ${styles.flowSolid}`}>
@@ -167,6 +171,16 @@ export function SettingsScreen({
             <CaretRight size={15} />
           </button>
           <p>Life Inbox stays private until you allow a specific item. Storage is not automatic access.</p>
+        </div>
+
+        <p className={styles.eyebrow}>People · optional</p>
+        <div className={styles.settingsGroup}>
+          <button type="button" onClick={onOpenCircles}>
+            <span>Circles</span>
+            <small>{socialEnabled ? 'on this device · no feed' : 'social off · nothing published'}</small>
+            <CaretRight size={15} />
+          </button>
+          <p>You choose what each Circle would see. Journals, health numbers, faith, and money stay out.</p>
         </div>
 
         <p className={styles.eyebrow}>How much to show · Mus Lite</p>

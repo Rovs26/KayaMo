@@ -24,6 +24,7 @@ import {
   PushPin,
   Target,
   Tree,
+  UsersThree,
   X,
 } from '@phosphor-icons/react';
 import type {
@@ -37,6 +38,7 @@ import {
   actualMinutesBetween,
   busiestWeekday,
   buildPersonalArchive,
+  countWeekWorkouts,
   evidenceBankEntries,
   proposeStoryFromGoal,
   renderArchiveMarkdown,
@@ -98,6 +100,7 @@ import {
   completeLocalRoutine,
   createLocalBusyBlock,
   closeLocalGroveChapter,
+  createLocalCircle,
   createLocalCocoConversation,
   createLocalFocusSession,
   createLocalInboxItem,
@@ -112,6 +115,7 @@ import {
   getLocalDailyLoopPreferences,
   getLocalDailyPlan,
   getLocalFutureSelf,
+  getLocalSocialPrefs,
   instantOnLogicalDate,
   listLocalCocoMessages,
   listLocalCompanionEvents,
@@ -124,6 +128,7 @@ import {
   listLocalInboxItems,
   listLocalLifeStory,
   listLocalBusyBlocks,
+  listLocalCircles,
   listLocalOpenTasks,
   listLocalPersonalRules,
   listLocalRoutineCompletions,
@@ -139,12 +144,16 @@ import {
   saveLocalDailyLoopPreferences,
   saveLocalDailyPlan,
   saveLocalFutureSelf,
+  saveLocalSocialPrefs,
   setLocalGoalStatus,
   setLocalTaskCompleted,
   setLocalTaskScheduledFor,
   startLocalFocusSession,
   tombstoneLocalBusyBlock,
+  tombstoneLocalCircle,
+  updateLocalCircle,
   type LocalBusyBlock,
+  type LocalCircle,
   type LocalCocoMessage,
   type LocalLifeStoryEntry,
   type LocalCompanionEvent,
@@ -172,6 +181,7 @@ import { SyncStatusBar } from './sync-status-bar';
 import { AddSheet } from './add-sheet';
 import { DayStrip, PastDayBanner, WeekBars } from './day-strip';
 import { ChapterCloseSheet } from './chapter-close-sheet';
+import { CirclesScreen } from './circles-screen';
 import { CommitmentSheet } from './commitment-sheet';
 import { FirstRun } from './first-run';
 import { FoodRecordSheet } from './food-record-sheet';
@@ -454,6 +464,9 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [storyEntries, setStoryEntries] = useState<LocalLifeStoryEntry[]>([]);
   const [chapterOpen, setChapterOpen] = useState(false);
   const [complexity, setComplexity] = useState<ComplexityLevel>(readComplexity);
+  const [circles, setCircles] = useState<LocalCircle[]>([]);
+  const [socialEnabled, setSocialEnabled] = useState(false);
+  const [circlesOpen, setCirclesOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [weeklyResetOpen, setWeeklyResetOpen] = useState(false);
@@ -488,6 +501,14 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const logicalDate = viewLogicalDate;
   const activeFocus = focusSessions.find((session) => session.status === 'active') ?? null;
   const activeWorkout = workouts.find((workout) => workout.status === 'active') ?? null;
+  const weekWorkoutCount = useMemo(
+    () =>
+      countWeekWorkouts(
+        workouts.filter((row) => row.status === 'completed').map((row) => row.logical_date),
+        todayLogical,
+      ),
+    [workouts, todayLogical],
+  );
   const homeGoal = goals.find((goal) => goal.status === 'active') ?? null;
   const homeGoalMilestones = homeGoal
     ? goalMilestones.filter((row) => row.goal_id === homeGoal.id)
@@ -703,7 +724,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const refresh = useCallback(async () => {
     const weekday = new Date(`${logicalDate}T12:00:00`).getDay();
     const yesterday = shiftLogicalDate(logicalDate, -1);
-    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules, nextBlocks, nextGrants, nextStory] = await Promise.all([
+    const [nextTasks, nextRoutines, nextAllRoutines, completions, nextPlan, sessions, nextGoals, nextWorkouts, nextWeights, prefs, nextProgress, nextPresence, nextInbox, nextSelf, nextCompass, nextOpen, priorPlan, nextDailyPlans, nextFocusHistory, nextCompanionEvents, nextRules, nextBlocks, nextGrants, nextStory, nextCircles, nextSocial] = await Promise.all([
       listLocalTasksForDate(userId, logicalDate),
       listLocalRoutines(userId, weekday),
       listLocalRoutines(userId),
@@ -728,6 +749,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
       listLocalBusyBlocks(userId),
       getLocalActionGrants(userId),
       listLocalLifeStory(userId),
+      listLocalCircles(userId),
+      getLocalSocialPrefs(userId),
     ]);
     const nextMilestones = (
       await Promise.all(nextGoals.map((goal) => listLocalGoalMilestones(userId, goal.id)))
@@ -756,6 +779,8 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     setBusyBlocks(nextBlocks);
     setActionGrants(nextGrants);
     setStoryEntries(nextStory);
+    setCircles(nextCircles);
+    setSocialEnabled(nextSocial.enabled);
     setYesterdayNote(priorPlan?.tomorrow_note ?? null);
     setScripture(await listLocalScripture({ faithEnabled: prefs?.faith_enabled ?? false }));
   }, [logicalDate, userId]);
@@ -1385,6 +1410,50 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             }}
           />
         ) : null}
+        {circlesOpen ? (
+          <CirclesScreen
+            socialEnabled={socialEnabled}
+            circles={circles}
+            goals={goals.filter((goal) => goal.status === 'active')}
+            weekWorkoutCount={weekWorkoutCount}
+            groveStageLabel={stageLabel(progress.stageKey)}
+            onSocial={(enabled) => {
+              void saveLocalSocialPrefs({ userId, enabled }).then(async () => {
+                setSocialEnabled(enabled);
+                setNotice(
+                  enabled
+                    ? 'Social is on for this device. Invites are still not sent.'
+                    : 'Social is off. Nothing is published.',
+                );
+                await refresh();
+              });
+            }}
+            onCreate={async (input) => {
+              const row = await createLocalCircle({
+                userId,
+                name: input.name,
+                kind: input.kind,
+              });
+              await refresh();
+              return row.id;
+            }}
+            onUpdate={async (input) => {
+              await updateLocalCircle({
+                id: input.id,
+                userId,
+                facets: input.facets,
+                selectedGoalIds: input.selectedGoalIds,
+              });
+              await refresh();
+            }}
+            onRemove={async (id) => {
+              await tombstoneLocalCircle({ id, userId });
+              setNotice('Circle removed on this device. Nothing was published.');
+              await refresh();
+            }}
+            onClose={() => setCirclesOpen(false)}
+          />
+        ) : null}
         {weeklyResetOpen ? (
           <WeeklyResetSheet
             todayLogical={todayLogical}
@@ -1501,6 +1570,11 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               );
               setNotice('Evidence Bank downloaded. This is not a generated CV.');
             }}
+            onOpenCircles={() => {
+              setSettingsOpen(false);
+              setCirclesOpen(true);
+            }}
+            socialEnabled={socialEnabled}
             bodyRows={[
               { id: 'sex', label: 'Sex', value: guidance?.profile.sex ?? 'not set' },
               { id: 'goal', label: 'Goal', value: guidance?.profile.goal ?? 'not set' },
@@ -1681,7 +1755,13 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
                   ? `${foodEntries.length} ${foodEntries.length === 1 ? 'food log' : 'food logs'} today`
                   : `${kcalProgress.eatenKcal} of ${kcalProgress.targetKcal} kcal`
               }
+              circleSummary={
+                circles.length === 0
+                  ? 'Name a group. They see only what you allow.'
+                  : `${circles.length} ${circles.length === 1 ? 'Circle' : 'Circles'} on this device`
+              }
               onOpenPhysical={() => setLifeAreaOpen('physical')}
+              onOpenCircles={() => setCirclesOpen(true)}
               onChat={() => selectTab('mus')}
             />
             )
@@ -1716,7 +1796,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
           ) : null}
         </main>
 
-        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen && !commitmentOpen && !chapterOpen ? (
+        {!firstRun && !workoutOpen && !settingsOpen && !goalFlow && !planSheet && !weeklyResetOpen && !commitmentOpen && !chapterOpen && !circlesOpen ? (
           <nav className={styles.tabbar} aria-label="Primary navigation" data-disabled={detail ? '1' : undefined}>
             {TABS.map(({ id, label, Icon }) => (
               <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => selectTab(id)}>
@@ -2336,19 +2416,23 @@ function TodayScreen({
 function LifeScreen({
   areas,
   physicalSummary,
+  circleSummary,
   onOpenPhysical,
+  onOpenCircles,
   onChat,
 }: {
   areas: LifeArea[];
   physicalSummary: string;
+  circleSummary: string;
   onOpenPhysical: () => void;
+  onOpenCircles: () => void;
   onChat: () => void;
 }) {
   return (
     <div className={`${styles.screen} ${styles.listScreen}`}>
       <AppScreenHeader
         title="Life"
-        subtitle="Physical Self is the deep slice. Other areas stay quiet shelves until we build them."
+        subtitle="Physical Self is the deep slice. Circles stay optional and private-first."
         onChat={onChat}
       />
       {areas.map((area) =>
@@ -2371,6 +2455,15 @@ function LifeScreen({
           </div>
         ),
       )}
+      <button type="button" className={styles.workingToward} onClick={onOpenCircles}>
+        <UsersThree size={22} />
+        <span>
+          <b>Circles</b>
+          <strong>Optional groups, not a feed</strong>
+          <small>{circleSummary}</small>
+        </span>
+        <CaretRight size={16} />
+      </button>
     </div>
   );
 }

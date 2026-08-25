@@ -33,6 +33,8 @@ export type {
   LocalActionGrants,
   LocalLifeStoryEntry,
   LocalGroveChapter,
+  LocalCircle,
+  LocalSocialPrefs,
   LocalRoutine,
   LocalRoutineCompletion,
   LocalServing,
@@ -104,6 +106,14 @@ export {
   listLocalLifeStory,
   tombstoneLocalLifeStoryEntry,
 } from './archive';
+export {
+  createLocalCircle,
+  getLocalSocialPrefs,
+  listLocalCircles,
+  saveLocalSocialPrefs,
+  tombstoneLocalCircle,
+  updateLocalCircle,
+} from './circles';
 export {
   completeLocalRoutine,
   createLocalRoutine,
