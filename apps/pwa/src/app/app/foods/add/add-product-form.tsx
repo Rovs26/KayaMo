@@ -9,7 +9,7 @@ import {
   type UserFoodDraft,
 } from '@kayamo/food/label-ocr';
 import { Button } from '@kayamo/ui';
-import { apiFetch } from '@/lib/api-origin';
+import { apiFetch } from '@kayamo/features';
 import { useMemo, useState } from 'react';
 
 const LABELS: Record<NutrientKey, string> = {

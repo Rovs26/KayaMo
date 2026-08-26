@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
     '@kayamo/ai',
     '@kayamo/core',
     '@kayamo/db',
+    '@kayamo/features',
     '@kayamo/food',
     '@kayamo/offline',
     '@kayamo/ui',

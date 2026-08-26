@@ -6,10 +6,11 @@ that speaks Taglish. Sibling to KitaMo.
 ```
 kayamo/
 ├── apps/
-│   ├── pwa/          → the product (Next.js, installable PWA)
+│   ├── pwa/          → mobile web (Next.js, installable PWA; Capacitor wraps this)
 │   ├── admin/        → internal tools, auth-gated
 │   └── mobile/       → Capacitor shell for Android + iOS
 ├── packages/
+│   ├── features/     → screen logic and layout-neutral UI
 │   ├── db/           → schema, migrations, RLS
 │   ├── core/         → TDEE, targets, trend, progression  (pure logic)
 │   ├── food/         → resolver cascade + source adapters

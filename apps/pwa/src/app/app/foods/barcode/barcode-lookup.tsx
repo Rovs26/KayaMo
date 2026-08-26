@@ -29,7 +29,7 @@ import {
   setTrackTorch,
   trackHasTorch,
 } from '@/lib/barcode-scan';
-import { apiFetch } from '@/lib/api-origin';
+import { apiFetch } from '@kayamo/features';
 import { hapticLight, scanRetailBarcode } from '@kayamo/mobile/native';
 import {
   QuantitySheet,

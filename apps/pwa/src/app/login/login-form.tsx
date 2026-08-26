@@ -1,7 +1,7 @@
 'use client';
 
 import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
-import { apiUrl } from '@/lib/api-origin';
+import { apiUrl } from '@kayamo/features';
 import { LOCAL_DEV_EMAIL } from '@/lib/local-dev-login';
 import { isNativeApp } from '@kayamo/mobile/native';
 import { useState, type FormEvent } from 'react';

@@ -22,7 +22,7 @@ import {
   type LocalScripturePassage,
 } from '@kayamo/offline';
 import { Button } from '@kayamo/ui';
-import { apiFetch } from '@/lib/api-origin';
+import { apiFetch } from '@kayamo/features';
 import { isNativeApp, registerPushIfNative } from '@kayamo/mobile/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 

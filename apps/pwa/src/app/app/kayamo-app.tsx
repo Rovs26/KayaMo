@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { apiFetch } from '@/lib/api-origin';
+import { apiFetch, musReplyFromApi } from '@kayamo/features';
 import {
   ArrowLeft,
   Barcode,
@@ -28,9 +28,6 @@ import {
   UsersThree,
   X,
 } from '@phosphor-icons/react';
-import type {
-  CocoResponse,
-} from '@kayamo/ai';
 import {
   COMPANION_EVENT_POINTS,
   COMPANION_EVENT_TYPES,
@@ -177,7 +174,7 @@ import {
   useLiveFoodEntries,
   useLiveFoodHistory,
 } from '@kayamo/offline';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SyncStatusBar } from './sync-status-bar';
 import { AddSheet } from './add-sheet';
 import { DayStrip, PastDayBanner, WeekBars } from './day-strip';
@@ -3136,6 +3133,14 @@ function MusScreen({ userId, logicalDate, recommended }: {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [rememberedMessageId, setRememberedMessageId] = useState<string | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 136)}px`;
+  }, [text]);
 
   useEffect(() => {
     if (conversationId) return;
@@ -3151,29 +3156,40 @@ function MusScreen({ userId, logicalDate, recommended }: {
     if (!message || !conversationId || busy) return;
     setText('');
     setBusy(true);
-    const local = await appendLocalCocoMessage({ userId, conversationId, role: 'user', content: message });
-    setMessages((current) => [...current, local]);
-    let reply = recommended
-      ? `I’m here. Your confirmed next action is “${recommended}.” We can make it smaller, but I won’t change it without you.`
-      : 'I’m here. We can name one small next action together, and nothing will be saved until you confirm it.';
-    let source: LocalCocoMessage['response_source'] = 'fallback';
     try {
-      const response = await apiFetch('/api/coco/respond', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ requestId: crypto.randomUUID(), mode: 'chat', message, logicalDate }),
-      });
-      if (response.ok) {
-        const result = await response.json() as CocoResponse;
-        reply = result.message;
-        source = 'model';
+      const local = await appendLocalCocoMessage({ userId, conversationId, role: 'user', content: message });
+      setMessages((current) => [...current, local]);
+      let reply = recommended
+        ? `I’m here. Your confirmed next action is “${recommended}.” We can make it smaller, but I won’t change it without you.`
+        : 'I’m here. We can name one small next action together, and nothing will be saved until you confirm it.';
+      let source: LocalCocoMessage['response_source'] = 'fallback';
+      try {
+        const response = await apiFetch('/api/mus/respond', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ requestId: crypto.randomUUID(), mode: 'chat', message, logicalDate }),
+        });
+        if (response.ok) {
+          const parsed = musReplyFromApi(await response.json());
+          if (parsed) {
+            reply = parsed.message;
+            source = parsed.source;
+          }
+        }
+      } catch {
+        // The deterministic reply keeps Mus useful offline.
       }
-    } catch {
-      // The deterministic reply keeps Mus useful offline.
+      const mus = await appendLocalCocoMessage({
+        userId,
+        conversationId,
+        role: 'assistant',
+        content: reply,
+        responseSource: source,
+      });
+      setMessages((current) => [...current, mus]);
+    } finally {
+      setBusy(false);
     }
-    const mus = await appendLocalCocoMessage({ userId, conversationId, role: 'assistant', content: reply, responseSource: source });
-    setMessages((current) => [...current, mus]);
-    setBusy(false);
   }
 
   async function rememberMessage(message: LocalCocoMessage) {
@@ -3214,9 +3230,25 @@ function MusScreen({ userId, logicalDate, recommended }: {
         {busy ? <div className={styles.cocoBubble}>Thinking carefully…</div> : null}
       </div>
       <form className={styles.chatComposer} onSubmit={send}>
-        <label className={styles.srOnly} htmlFor="mus-message">Message Mus</label>
-        <textarea id="mus-message" rows={1} value={text} onChange={(event) => setText(event.target.value)} placeholder="Say what’s actually going on…" />
-        <button type="submit" disabled={!text.trim() || busy} aria-label="Send message"><PaperPlaneTilt size={21} weight="fill" /></button>
+        <label className={styles.srOnly} htmlFor="mus-message">
+          Message Mus. Enter sends. Shift+Enter starts a new line.
+        </label>
+        <textarea
+          id="mus-message"
+          ref={composerRef}
+          rows={2}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
+          placeholder="Say what’s actually going on…"
+        />
+        <button type="submit" disabled={!text.trim() || busy} aria-label="Send message">
+          <PaperPlaneTilt size={21} weight="fill" />
+        </button>
       </form>
       <p className={styles.chatPrivacy}>Mus proposes. You confirm every write.</p>
     </div>

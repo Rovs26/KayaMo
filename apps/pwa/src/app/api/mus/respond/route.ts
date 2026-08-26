@@ -59,7 +59,7 @@ function configuredProvider(): CocoProvider {
   } catch {
     return {
       generate: async () => {
-        throw new Error('Coco provider is unavailable');
+        throw new Error('Mus provider is unavailable');
       },
     };
   }
@@ -71,12 +71,12 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Sign in to talk with Coco.' }, { status: 401 });
+    return NextResponse.json({ error: 'Sign in to talk with Mus.' }, { status: 401 });
   }
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid Coco request.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid Mus request.' }, { status: 400 });
   }
 
   const profile = await getProfile(supabase, user.id);

@@ -33,7 +33,7 @@ import {
   useLiveFoodHistory,
 } from '@kayamo/offline';
 import { Button, EmptyState, NumberDisplay, Toast } from '@kayamo/ui';
-import { apiFetch } from '@/lib/api-origin';
+import { apiFetch } from '@kayamo/features';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   QuantitySheet,

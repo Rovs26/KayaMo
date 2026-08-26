@@ -155,8 +155,8 @@ function fallbackOutput(
   const next = request.context.recommendedAction;
   const message =
     reason === 'budget'
-      ? `Coco's AI limit is resting for today. Your next grounded step is still: ${next.title}.`
-      : `I couldn't reach Coco's AI right now. We can still take one clear step: ${next.title}.`;
+      ? `Mus's AI limit is resting for today. Your next grounded step is still: ${next.title}.`
+      : `I couldn't reach Mus's AI right now. We can still take one clear step: ${next.title}.`;
   return {
     message,
     tone: request.mode === 'focus' || request.mode === 'workout' ? 'firm' : 'balanced',

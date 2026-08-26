@@ -1,6 +1,7 @@
 'use client';
 
 import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
+import { configureApiClient } from '@kayamo/features';
 import { startSync } from '@kayamo/offline';
 import { listenAppUrlOpen, setNativeChrome } from '@kayamo/mobile/native';
 import { type ReactNode, useEffect } from 'react';
@@ -21,6 +22,12 @@ function pathFromAppUrl(raw: string): { path: string; code: string | null } | nu
 export function OfflineRoot({ children }: { children: ReactNode }) {
   useEffect(() => {
     const client = createBrowserSupabaseClient();
+    configureApiClient({
+      getAccessToken: async () => {
+        const { data } = await client.auth.getSession();
+        return data.session?.access_token ?? null;
+      },
+    });
     void setNativeChrome();
     const stopListen = listenAppUrlOpen((raw) => {
       const parsed = pathFromAppUrl(raw);

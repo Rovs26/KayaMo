@@ -9,10 +9,15 @@ Capacitor wrap for Android/iOS. Solo developer. First market: Philippines.
 Bundle ID `ph.kayamo.app`. AI companion is named Mus.
 
 ## Monorepo layout — put code in the right place
-- `apps/pwa`    — user-facing Next.js app. Routes, screens, thin glue only.
+- `apps/pwa`    — mobile-first user app. Routes, nav chrome, thin glue only.
 - `apps/admin`  — internal tools, auth-gated, never public.
 - `apps/mobile` — Capacitor shell. Native code only, zero business logic.
+- `packages/features` — screen logic, data hooks, layout-neutral components.
 - `packages/db` `core` `food` `ai` `offline` `ui` — all shared logic.
+
+apps/pwa is mobile-first and thumb-driven. apps/web is desktop,
+keyboard-first, data-dense. Neither contains business logic — that
+lives in packages/features. A screen implemented twice is a bug.
 
 Packages never import from apps. Apps never duplicate package logic.
 If a formula or a resolver appears inside `apps/`, that is a bug.

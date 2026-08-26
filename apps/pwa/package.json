@@ -15,6 +15,7 @@
     "@kayamo/ai": "workspace:*",
     "@kayamo/core": "workspace:*",
     "@kayamo/db": "workspace:*",
+    "@kayamo/features": "workspace:*",
     "@kayamo/food": "workspace:*",
     "@kayamo/mobile": "workspace:*",
     "@capacitor/core": "7",

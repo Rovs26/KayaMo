@@ -23,9 +23,10 @@ pnpm mobile:sync      # copy PWA build into the Capacitor shell
 ## Where code goes
 | Path | Holds | Never holds |
 |---|---|---|
-| `apps/pwa` | routes, screens, glue | domain logic, formulas |
+| `apps/pwa` | mobile-first routes, nav chrome, glue | domain logic, formulas |
 | `apps/admin` | internal dashboards | anything user-facing |
 | `apps/mobile` | native plugin wiring | UI, business logic |
+| `packages/features` | screen logic, data hooks, layout-neutral UI | routing, nav chrome |
 | `packages/db` | schema, migrations, RLS, queries | domain formulas |
 | `packages/core` | TDEE, targets, trend, progression, identity | I/O, network, React |
 | `packages/food` | resolver cascade, source adapters | UI |
