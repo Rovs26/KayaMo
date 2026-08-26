@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { apiFetch } from '@/lib/api-origin';
 import {
   ArrowLeft,
   Barcode,
@@ -350,7 +351,7 @@ async function fetchGuidanceSnapshot(
   logicalDate: string,
 ): Promise<{ snapshot: GuidanceSnapshot | null; stale: boolean }> {
   try {
-    const response = await fetch(`/api/guidance?date=${logicalDate}`, { cache: 'no-store' });
+    const response = await apiFetch(`/api/guidance?date=${logicalDate}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`guidance ${response.status}`);
     const snapshot = (await response.json()) as GuidanceSnapshot;
     await cacheGuidanceSnapshot(userId, snapshot);
@@ -414,7 +415,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [detailStack, setDetailStack] = useState<DetailScreen[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('action') === 'quick-log';
+  });
   const [taskOpen, setTaskOpen] = useState(false);
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [firstRun, setFirstRun] = useState(() => {
@@ -435,8 +439,19 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [trendOpen, setTrendOpen] = useState(false);
   const [expenditureOpen, setExpenditureOpen] = useState(false);
-  const [weightOpen, setWeightOpen] = useState(false);
+  const [weightOpen, setWeightOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('action') === 'log-weight';
+  });
   const [weightInput, setWeightInput] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('action')) return;
+    params.delete('action');
+    const next = `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState(null, '', next);
+  }, []);
   const [tasks, setTasks] = useState<LocalTask[]>([]);
   const [routines, setRoutines] = useState<LocalRoutine[]>([]);
   const [allRoutines, setAllRoutines] = useState<LocalRoutine[]>([]);
@@ -899,7 +914,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   }, [kcalByDate, presenceDates, workouts]);
 
   async function patchProfile(patch: Record<string, unknown>) {
-    const response = await fetch('/api/profile', {
+    const response = await apiFetch('/api/profile', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
@@ -1192,7 +1207,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   async function recomputeGuidance() {
     setRecomputing(true);
     try {
-      const response = await fetch('/api/guidance', {
+      const response = await apiFetch('/api/guidance', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ date: logicalDate }),
@@ -3143,7 +3158,7 @@ function MusScreen({ userId, logicalDate, recommended }: {
       : 'I’m here. We can name one small next action together, and nothing will be saved until you confirm it.';
     let source: LocalCocoMessage['response_source'] = 'fallback';
     try {
-      const response = await fetch('/api/coco/respond', {
+      const response = await apiFetch('/api/coco/respond', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ requestId: crypto.randomUUID(), mode: 'chat', message, logicalDate }),

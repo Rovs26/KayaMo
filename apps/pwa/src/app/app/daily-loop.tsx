@@ -22,6 +22,8 @@ import {
   type LocalScripturePassage,
 } from '@kayamo/offline';
 import { Button } from '@kayamo/ui';
+import { apiFetch } from '@/lib/api-origin';
+import { isNativeApp, registerPushIfNative } from '@kayamo/mobile/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type InstallPromptEvent = Event & {
@@ -232,6 +234,17 @@ export function DailyLoop({ userId }: { userId: string }) {
   }
 
   async function enableNotifications() {
+    if (isNativeApp()) {
+      const token = await registerPushIfNative();
+      const row = await saveLocalDailyLoopPreferences({
+        userId, notificationsEnabled: true,
+      });
+      setPreferences(row);
+      if (!token) {
+        setNudge('Notifications stayed off. You can enable them in system settings.');
+      }
+      return;
+    }
     const permission = 'Notification' in window
       ? await Notification.requestPermission()
       : 'unsupported';
@@ -252,7 +265,7 @@ export function DailyLoop({ userId }: { userId: string }) {
             userVisibleOnly: true,
             applicationServerKey: vapidKey(publicKey),
           });
-        await fetch('/api/notifications/subscriptions', {
+        await apiFetch('/api/notifications/subscriptions', {
           method: 'POST', headers: { 'content-type': 'application/json' },
           body: JSON.stringify(subscription.toJSON()),
         });
@@ -272,7 +285,7 @@ export function DailyLoop({ userId }: { userId: string }) {
     const registration = await navigator.serviceWorker?.ready;
     const subscription = await registration?.pushManager?.getSubscription();
     if (subscription) {
-      await fetch('/api/notifications/subscriptions', {
+      await apiFetch('/api/notifications/subscriptions', {
         method: 'DELETE', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ endpoint: subscription.endpoint }),
       }).catch(() => undefined);

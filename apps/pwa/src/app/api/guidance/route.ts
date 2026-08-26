@@ -76,7 +76,7 @@ async function readGuidance(
 }
 
 export async function GET(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 
 /** Recomputes expenditure and targets, then returns the refreshed guidance. */
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

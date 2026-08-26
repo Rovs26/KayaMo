@@ -12,7 +12,7 @@ const subscriptionSchema = z.object({
 }).strict();
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Sign in to enable reminders.' }, { status: 401 });
   const parsed = subscriptionSchema.safeParse(await request.json().catch(() => null));
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Sign in to change reminders.' }, { status: 401 });
   const parsed = z.object({ endpoint: z.string().url().max(4000) }).strict()

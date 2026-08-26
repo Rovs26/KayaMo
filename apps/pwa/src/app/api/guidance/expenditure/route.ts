@@ -6,7 +6,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 const requestSchema = z.object({ asOfDate: z.string().date() }).strict();
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

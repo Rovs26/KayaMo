@@ -4,7 +4,7 @@ import { searchExternalFoods, supabaseCanonicalStore } from '@kayamo/food';
 import { createServerSupabase } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -14,7 +14,9 @@ playwright-report/
 test-results/
 
 # Design zip drops — never commit the HTML prototypes
-KayaMo mobile app design */
+KayaMo mobile app design *
+kayamo-android-assets.zip
+apps/pwa/.capacitor-parked/
 
 # Capacitor native projects — generated, but commit them once you ship
 apps/mobile/ios/App/Pods/
@@ -23,6 +25,9 @@ apps/mobile/android/app/build/
 apps/mobile/android/local.properties
 *.keystore
 *.jks
+apps/mobile/android/keystore.properties
+apps/mobile/www/**
+!apps/mobile/www/.gitkeep
 
 # Supabase local
 supabase/.branches/

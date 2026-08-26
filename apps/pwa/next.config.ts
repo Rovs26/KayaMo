@@ -24,8 +24,16 @@ const nextConfig: NextConfig = {
     '@kayamo/food',
     '@kayamo/offline',
     '@kayamo/ui',
+    '@kayamo/mobile',
   ],
+  ...(process.env.CAPACITOR_BUILD === '1'
+    ? {
+        output: 'export' as const,
+        images: { unoptimized: true },
+      }
+    : {}),
   async headers() {
+    if (process.env.CAPACITOR_BUILD === '1') return [];
     return [
       {
         source: '/sw.js',

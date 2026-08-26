@@ -25,6 +25,7 @@ import {
   type LocalWorkout,
   type LocalWorkoutSet,
 } from '@kayamo/offline';
+import { cancelRestNotification, scheduleRestNotification } from '@kayamo/mobile/native';
 import {
   ArrowBendDownLeft,
   ArrowLeft,
@@ -296,6 +297,7 @@ export function WorkoutFlow({
     const timer = await startLocalRestTimer({ workoutId, userId, seconds: REST_SECONDS });
     setRestSnoozes(0);
     setRestEndsAt(timer.ends_at);
+    void scheduleRestNotification(workoutId, timer.ends_at, 'Your next set is ready');
   }
 
   async function bumpRest(countSnooze: boolean) {
@@ -307,12 +309,14 @@ export function WorkoutFlow({
     if (row) {
       if (countSnooze) setRestSnoozes((count) => count + 1);
       setRestEndsAt(row.ends_at);
+      void scheduleRestNotification(workout.id, row.ends_at, 'Your next set is ready');
     }
   }
 
   async function dismissRest() {
     if (!workout) return;
     await clearLocalRestTimer(workout.id);
+    void cancelRestNotification(workout.id);
     setRestEndsAt(null);
     setRestSnoozes(0);
   }

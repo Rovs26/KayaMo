@@ -21,8 +21,8 @@ const patchSchema = z
     message: 'Nothing to update.',
   });
 
-export async function GET() {
-  const supabase = await createServerSupabase();
+export async function GET(request: Request) {
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -31,7 +31,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

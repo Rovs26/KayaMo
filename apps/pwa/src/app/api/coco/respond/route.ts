@@ -66,7 +66,7 @@ function configuredProvider(): CocoProvider {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

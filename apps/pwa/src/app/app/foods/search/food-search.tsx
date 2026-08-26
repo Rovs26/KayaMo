@@ -33,6 +33,7 @@ import {
   useLiveFoodHistory,
 } from '@kayamo/offline';
 import { Button, EmptyState, NumberDisplay, Toast } from '@kayamo/ui';
+import { apiFetch } from '@/lib/api-origin';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   QuantitySheet,
@@ -348,7 +349,7 @@ export function FoodSearch({
       void (async () => {
         let nextError: string | null = null;
         try {
-          const localRes = await fetch(
+          const localRes = await apiFetch(
             `/api/foods/resolve?q=${encodeURIComponent(text)}&local=1`,
             { signal: ac.signal },
           );
@@ -361,7 +362,7 @@ export function FoodSearch({
           }
           publish(true, nextError);
 
-          const fullRes = await fetch(`/api/foods/resolve?q=${encodeURIComponent(text)}`, {
+          const fullRes = await apiFetch(`/api/foods/resolve?q=${encodeURIComponent(text)}`, {
             signal: ac.signal,
           });
           const fullJson = (await fullRes.json()) as ResolveResponse;

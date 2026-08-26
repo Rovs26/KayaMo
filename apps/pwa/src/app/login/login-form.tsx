@@ -1,5 +1,10 @@
+'use client';
+
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
+import { apiUrl } from '@/lib/api-origin';
 import { LOCAL_DEV_EMAIL } from '@/lib/local-dev-login';
-import { signInAsLocalDev, signInWithEmail, signInWithGoogle } from './actions';
+import { isNativeApp } from '@kayamo/mobile/native';
+import { useState, type FormEvent } from 'react';
 import styles from './login.module.css';
 
 function GoogleMark() {
@@ -25,6 +30,11 @@ function GoogleMark() {
   );
 }
 
+function authRedirectTo(): string {
+  if (isNativeApp()) return 'kayamo://auth/callback';
+  return `${window.location.origin}/auth/callback?next=/app`;
+}
+
 export function LoginForm({
   sent,
   error,
@@ -36,6 +46,47 @@ export function LoginForm({
   setup: boolean;
   localDev: boolean;
 }) {
+  const [pending, setPending] = useState<'email' | 'google' | null>(null);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [clientSent, setClientSent] = useState(false);
+
+  async function onEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const email = String(new FormData(event.currentTarget).get('email') ?? '').trim();
+    if (!email) {
+      setClientError('Email is required');
+      return;
+    }
+    setPending('email');
+    setClientError(null);
+    const supabase = createBrowserSupabaseClient();
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: authRedirectTo() },
+    });
+    setPending(null);
+    if (otpError) {
+      setClientError(otpError.message);
+      return;
+    }
+    setClientSent(true);
+  }
+
+  async function onGoogle() {
+    setPending('google');
+    setClientError(null);
+    const supabase = createBrowserSupabaseClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: authRedirectTo() },
+    });
+    setPending(null);
+    if (oauthError) setClientError(oauthError.message);
+  }
+
+  const shownError = clientError ?? error;
+  const shownSent = clientSent || sent;
+
   return (
     <div className={styles.card}>
       {setup ? (
@@ -46,19 +97,19 @@ export function LoginForm({
         </p>
       ) : null}
 
-      {sent ? (
+      {shownSent ? (
         <p className={styles.banner} data-kind="ok" role="status">
           Check your inbox — or Inbucket at localhost:54324 if you are on local Supabase.
         </p>
       ) : null}
 
-      {error ? (
+      {shownError ? (
         <p className={styles.banner} data-kind="warn" role="alert">
-          {error}
+          {shownError}
         </p>
       ) : null}
 
-      <form action={signInWithEmail} className={styles.stack}>
+      <form onSubmit={(event) => void onEmail(event)} className={styles.stack}>
         <label className={styles.field}>
           <span>Email</span>
           <input
@@ -70,23 +121,26 @@ export function LoginForm({
             placeholder="you@example.com"
           />
         </label>
-        <button type="submit" className={styles.primary} disabled={setup}>
-          Send magic link
+        <button type="submit" className={styles.primary} disabled={setup || pending !== null}>
+          {pending === 'email' ? 'Sending…' : 'Send magic link'}
         </button>
       </form>
 
       <p className={styles.rule}>or</p>
 
-      <form action={signInWithGoogle}>
-        <button type="submit" className={styles.secondary} disabled={setup}>
-          <GoogleMark />
-          Continue with Google
-        </button>
-      </form>
+      <button
+        type="button"
+        className={styles.secondary}
+        disabled={setup || pending !== null}
+        onClick={() => void onGoogle()}
+      >
+        <GoogleMark />
+        Continue with Google
+      </button>
 
       {localDev && !setup ? (
         <div className={styles.local}>
-          <form action={signInAsLocalDev}>
+          <form action={apiUrl('/api/auth/local-dev')} method="post">
             <button type="submit" className={styles.ghost}>
               Skip login on this machine
             </button>

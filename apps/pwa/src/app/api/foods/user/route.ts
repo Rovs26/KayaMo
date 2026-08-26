@@ -9,7 +9,7 @@ import { toNutrientString, userFoodConfirmSchema, userFoodToRows } from '@kayamo
 import { createServerSupabase } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -29,6 +29,8 @@ import {
   setTrackTorch,
   trackHasTorch,
 } from '@/lib/barcode-scan';
+import { apiFetch } from '@/lib/api-origin';
+import { hapticLight, scanRetailBarcode } from '@kayamo/mobile/native';
 import {
   QuantitySheet,
   sheetServingsFromFoodServings,
@@ -196,7 +198,7 @@ export function BarcodeLookup({
     setError(null);
     setCode(digits);
     try {
-      const res = await fetch(`/api/foods/resolve?barcode=${encodeURIComponent(digits)}`);
+      const res = await apiFetch(`/api/foods/resolve?barcode=${encodeURIComponent(digits)}`);
       const json = (await res.json()) as ResolveResponse;
       if (!res.ok) {
         setHits(null);
@@ -306,6 +308,18 @@ export function BarcodeLookup({
 
     async function start() {
       try {
+        let nativeDigits: string | null = null;
+        try {
+          nativeDigits = await scanRetailBarcode();
+        } catch {
+          nativeDigits = null;
+        }
+        if (cancelled) return;
+        if (nativeDigits) {
+          void hapticLight();
+          onDecoded(nativeDigits);
+          return;
+        }
         const stream = await openCameraStream();
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());

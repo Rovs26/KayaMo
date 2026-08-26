@@ -9,6 +9,7 @@ import {
   type UserFoodDraft,
 } from '@kayamo/food/label-ocr';
 import { Button } from '@kayamo/ui';
+import { apiFetch } from '@/lib/api-origin';
 import { useMemo, useState } from 'react';
 
 const LABELS: Record<NutrientKey, string> = {
@@ -117,7 +118,7 @@ export function AddProductForm({
     data.set('image', file);
     if (barcode) data.set('barcode', barcode);
     try {
-      const res = await fetch('/api/foods/ocr', { method: 'POST', body: data });
+      const res = await apiFetch('/api/foods/ocr', { method: 'POST', body: data });
       const json = (await res.json()) as { draft?: UserFoodDraft; error?: string };
       if (!res.ok || !json.draft) {
         setError(json.error ?? 'Could not read that label. Fill the fields by hand.');
@@ -151,7 +152,7 @@ export function AddProductForm({
     setBusy('save');
     setError(null);
     try {
-      const res = await fetch('/api/foods/user', {
+      const res = await apiFetch('/api/foods/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

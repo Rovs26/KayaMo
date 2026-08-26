@@ -1,12 +1,31 @@
+'use client';
+
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { Button } from '@kayamo/ui';
-import { signOut } from '../login/actions';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export function SignOutButton() {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
   return (
-    <form action={signOut}>
-      <Button type="submit" variant="ghost" size="md">
-        Sign out
-      </Button>
-    </form>
+    <Button
+      type="button"
+      variant="ghost"
+      size="md"
+      disabled={pending}
+      onClick={() => {
+        setPending(true);
+        void createBrowserSupabaseClient()
+          .auth.signOut()
+          .then(() => {
+            router.replace('/login');
+          })
+          .finally(() => setPending(false));
+      }}
+    >
+      Sign out
+    </Button>
   );
 }

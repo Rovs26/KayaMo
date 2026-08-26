@@ -6,6 +6,7 @@ export {
   isSupabaseConfigured,
 } from './env';
 export {
+  createBearerSupabase,
   createBrowserSupabase,
   createCookieSupabase,
   type CookieMethodsServer,

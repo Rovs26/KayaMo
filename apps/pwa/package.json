@@ -16,6 +16,8 @@
     "@kayamo/core": "workspace:*",
     "@kayamo/db": "workspace:*",
     "@kayamo/food": "workspace:*",
+    "@kayamo/mobile": "workspace:*",
+    "@capacitor/core": "7",
     "@kayamo/offline": "workspace:*",
     "@kayamo/ui": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
