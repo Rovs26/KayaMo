@@ -101,6 +101,21 @@ describe('Coco offline privacy boundary', () => {
     expect(await pendingCount()).toBe(2);
   });
 
+  it('rejects an empty assistant reply instead of throwing on trim', async () => {
+    const conversation = await createLocalCocoConversation({
+      userId: 'user-a',
+      title: 'Today',
+    });
+    await expect(
+      appendLocalCocoMessage({
+        userId: 'user-a',
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: undefined as unknown as string,
+      }),
+    ).rejects.toThrow('Coco message content is required');
+  });
+
   it('does not resurrect tombstoned explicit memory from stale sync data', async () => {
     const journal = await saveLocalJournalEntry({
       userId: 'user-a',

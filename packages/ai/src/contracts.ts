@@ -43,6 +43,21 @@ export const cocoActionNameSchema = z.enum([
   'remember_this',
 ]);
 
+/** Models often put a time in `scheduledFor`; keep YYYY-MM-DD for the field. */
+const calendarDateFromModel = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .transform((value, ctx) => {
+    const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1];
+    if (!datePart) {
+      ctx.addIssue({ code: 'custom', message: 'Expected a calendar date' });
+      return z.NEVER;
+    }
+    return datePart;
+  });
+
 const taskProposalSchema = z
   .object({
     proposalId: z.string().min(1).max(100),
@@ -53,10 +68,47 @@ const taskProposalSchema = z
       .object({
         title: z.string().trim().min(1).max(160),
         notes: z.string().trim().max(1000).nullable(),
-        scheduledFor: z.string().date().nullable(),
-        dueAt: z.string().datetime({ offset: true }).nullable(),
+        scheduledFor: z.string().trim().max(64).nullable(),
+        dueAt: z.string().trim().max(64).nullable(),
       })
-      .strict(),
+      .strict()
+      .transform((args, ctx) => {
+        const rawScheduled = args.scheduledFor;
+        let scheduledFor: string | null = null;
+        let dueAt = args.dueAt;
+
+        if (rawScheduled) {
+          const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(rawScheduled)?.[1];
+          if (!datePart) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'Expected a calendar date',
+              path: ['scheduledFor'],
+            });
+            return z.NEVER;
+          }
+          scheduledFor = datePart;
+          if (!dueAt && rawScheduled.includes('T')) {
+            const due = z.string().datetime({ offset: true }).safeParse(rawScheduled);
+            if (due.success) dueAt = due.data;
+          }
+        }
+
+        if (dueAt) {
+          const due = z.string().datetime({ offset: true }).safeParse(dueAt);
+          if (!due.success) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'Expected an offset datetime',
+              path: ['dueAt'],
+            });
+            return z.NEVER;
+          }
+          dueAt = due.data;
+        }
+
+        return { title: args.title, notes: args.notes, scheduledFor, dueAt };
+      }),
   })
   .strict();
 
@@ -101,7 +153,7 @@ const goalProposalSchema = z
         title: z.string().trim().min(1).max(180),
         description: z.string().trim().max(2000).nullable(),
         kind: z.enum(['goal', 'campaign', 'chapter']),
-        targetDate: z.string().date().nullable(),
+        targetDate: calendarDateFromModel.nullable(),
       })
       .strict(),
   })

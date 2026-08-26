@@ -61,12 +61,16 @@ export async function appendLocalCocoMessage(input: {
     throw new Error('Cannot append to a missing, deleted, or unowned conversation');
   }
   const at = nowIso();
+  const content = typeof input.content === 'string' ? input.content.trim() : '';
+  if (!content) {
+    throw new Error('Coco message content is required');
+  }
   const row: LocalCocoMessage = {
     id: input.id ?? newId(),
     user_id: input.userId,
     conversation_id: input.conversationId,
     role: input.role,
-    content: input.content.trim(),
+    content,
     response_source: input.responseSource ?? null,
     created_at: at,
     updated_at: at,

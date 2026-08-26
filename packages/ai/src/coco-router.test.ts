@@ -373,4 +373,41 @@ describe('governed Coco router', () => {
     expect((await route(request())).source).toBe('model');
     expect(generate).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps a gym-time create_task when scheduledFor is a datetime', async () => {
+    const gymOutput = {
+      message:
+        'A 10 pm gym session can be a great reset. Want a reminder task for it?',
+      tone: 'balanced',
+      proposals: [
+        {
+          proposalId: 'proposal-gym-10pm',
+          action: 'create_task',
+          summary: 'Create a task for a gym session at 10:00 pm today.',
+          requiresConfirmation: true,
+          arguments: {
+            title: 'Go to the gym',
+            notes: null,
+            scheduledFor: '2026-08-26T22:00:00+08:00',
+            dueAt: null,
+          },
+        },
+      ],
+      citations: [],
+    };
+    const route = createCocoRouter({
+      provider: provider(gymOutput),
+      budget: new InMemoryCocoBudgetStore(),
+      config: { maxRetries: 0 },
+    });
+
+    const result = await route(request({ allowedActions: ['create_task'] }));
+    expect(result.source).toBe('model');
+    const proposal = result.response.proposals[0];
+    expect(proposal?.action).toBe('create_task');
+    if (proposal?.action === 'create_task') {
+      expect(proposal.arguments.scheduledFor).toBe('2026-08-26');
+      expect(proposal.arguments.dueAt).toBe('2026-08-26T22:00:00+08:00');
+    }
+  });
 });
