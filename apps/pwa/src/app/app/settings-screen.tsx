@@ -18,7 +18,7 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { SignOutButton } from './sign-out-button';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 type Theme = 'system' | 'day' | 'night';
 

@@ -12,7 +12,7 @@ import {
 import { ArrowLeft } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 import type { LocalCircle, LocalGoal } from '@kayamo/offline';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 export function CirclesScreen({
   socialEnabled,

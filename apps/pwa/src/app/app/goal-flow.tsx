@@ -29,7 +29,7 @@ import {
   Pause,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 const EXAMPLES = [
   { label: 'Find work that does not drain me', Icon: Briefcase },

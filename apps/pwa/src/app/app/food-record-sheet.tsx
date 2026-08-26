@@ -9,7 +9,7 @@ import {
 } from '@kayamo/offline';
 import { Trash, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 const UNDO_MS = 8000;
 

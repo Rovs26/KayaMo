@@ -20,7 +20,7 @@ import {
 } from '@phosphor-icons/react';
 import Image from 'next/image';
 import { useState } from 'react';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 const SEEDS = [
   { id: 'step', label: 'One honest next step I can finish today', Icon: Tree },

@@ -28,7 +28,7 @@ import {
   Scales,
 } from '@phosphor-icons/react';
 import { useEffect, useMemo } from 'react';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 function toHistory(entry: LocalFoodEntry, timeZone: string): QuickLogHistoryEntry | null {
   if (!entry.food_id) return null;

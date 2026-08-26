@@ -4,7 +4,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AppShell } from './app-shell';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 /**
  * Client session gate so the same /app shell works as a bundled Capacitor

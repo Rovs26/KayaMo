@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 const KayaMoApp = dynamic(() => import('./kayamo-app').then((mod) => ({ default: mod.KayaMoApp })), {
   ssr: false,

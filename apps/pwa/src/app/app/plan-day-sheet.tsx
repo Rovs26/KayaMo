@@ -14,7 +14,7 @@ import {
 } from '@kayamo/core';
 import { ArrowLeft, CheckCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 export function PlanDaySheet({
   candidates,

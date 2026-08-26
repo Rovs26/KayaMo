@@ -8,6 +8,9 @@
       "@kayamo/db": ["../../packages/db/src"],
       "@kayamo/db/*": ["../../packages/db/src/*"],
       "@kayamo/features": ["../../packages/features/src"],
+      "@kayamo/features/app-shell.module.css": [
+        "../../packages/features/src/screens/kayamo-app.module.css"
+      ],
       "@kayamo/food": ["../../packages/food/src"],
       "@kayamo/offline": ["../../packages/offline/src"],
       "@kayamo/ui": ["../../packages/ui/src"]

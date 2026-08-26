@@ -3,7 +3,7 @@
 import type { AdaptivePattern, DeadlineRisk } from '@kayamo/core';
 import { ArrowLeft } from '@phosphor-icons/react';
 import type { LocalGoal } from '@kayamo/offline';
-import styles from './kayamo-app.module.css';
+import styles from '@kayamo/features/app-shell.module.css';
 
 export function WeeklyResetSheet({
   todayLogical,

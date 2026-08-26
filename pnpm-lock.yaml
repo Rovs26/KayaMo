@@ -365,6 +365,9 @@ importers:
       '@kayamo/ui':
         specifier: workspace:*
         version: link:../ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       zod:
         specifier: ^4
         version: 4.4.3
