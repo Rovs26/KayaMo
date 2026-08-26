@@ -1,4 +1,7 @@
 import type { z } from 'zod';
+import type { AiBudgetGate } from './budget';
+import { nutritionKeysInZod } from './llm-nutrition-guard';
+import { normalizeFoodPhrase, type PhraseCache } from './phrase-cache';
 
 export type AiTier = 'nano' | 'small' | 'vision' | 'coach';
 
@@ -6,6 +9,15 @@ export class AiConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AiConfigError';
+  }
+}
+
+export class AiBudgetError extends Error {
+  constructor(
+    message = "Today's AI limit is resting. Search, barcode, and typing still work.",
+  ) {
+    super(message);
+    this.name = 'AiBudgetError';
   }
 }
 
@@ -34,6 +46,17 @@ export type GenerateObjectArgs<S extends z.ZodType> = {
 export type GenerateObjectFn = <S extends z.ZodType>(
   args: GenerateObjectArgs<S>,
 ) => Promise<{ object: unknown }>;
+
+export type CompleteObjectDeps = {
+  generateObject?: GenerateObjectFn;
+  budget?: AiBudgetGate;
+  phraseCache?: { cache: PhraseCache; phrase: string };
+  /**
+   * Label OCR copies printed panel numbers and must opt in.
+   * Food-log / meal-photo extract schemas must leave this unset.
+   */
+  allowNutritionKeys?: boolean;
+};
 
 function envModel(tier: AiTier): string | undefined {
   const key =
@@ -77,14 +100,69 @@ async function liveGenerateObject<S extends z.ZodType>(
   });
 }
 
+function assertNoInventedNutrition<S extends z.ZodType>(
+  schema: S,
+  allowNutritionKeys: boolean | undefined,
+): void {
+  if (allowNutritionKeys) return;
+  const keys = nutritionKeysInZod(schema);
+  if (keys.length === 0) return;
+  throw new AiConfigError(
+    `LLM schema must not include nutrition fields (${keys.join(', ')}). Nutrition comes from the resolver.`,
+  );
+}
+
 /**
  * Every LLM call goes through here. Do not log prompt/image/nutrition content.
+ * Live calls (no generateObject test double) require a daily budget gate.
  */
 export async function completeObject<S extends z.ZodType>(
   args: GenerateObjectArgs<S>,
-  deps: { generateObject?: GenerateObjectFn } = {},
+  deps: CompleteObjectDeps = {},
 ): Promise<z.infer<S>> {
+  assertNoInventedNutrition(args.schema, deps.allowNutritionKeys);
+
+  if (deps.phraseCache) {
+    const hit = await deps.phraseCache.cache.lookup(
+      args.userId,
+      normalizeFoodPhrase(deps.phraseCache.phrase),
+    );
+    if (hit !== null && hit !== undefined) {
+      return args.schema.parse(hit);
+    }
+  }
+
+  if (!deps.generateObject && !deps.budget) {
+    throw new AiConfigError('Live LLM calls require a daily budget gate.');
+  }
+
+  if (deps.budget) {
+    const spent = await deps.budget.spentUsd();
+    if (spent + deps.budget.estimatedRequestCostUsd > deps.budget.dailyBudgetUsd) {
+      throw new AiBudgetError();
+    }
+  }
+
   const generate = deps.generateObject ?? liveGenerateObject;
+  const started = Date.now();
   const result = await generate(args);
-  return args.schema.parse(result.object);
+  const parsed = args.schema.parse(result.object);
+  const latencyMs = Date.now() - started;
+
+  if (deps.budget) {
+    await deps.budget.recordUsage({
+      costUsd: deps.budget.estimatedRequestCostUsd,
+      latencyMs,
+    });
+  }
+
+  if (deps.phraseCache) {
+    await deps.phraseCache.cache.store(
+      args.userId,
+      normalizeFoodPhrase(deps.phraseCache.phrase),
+      parsed,
+    );
+  }
+
+  return parsed;
 }

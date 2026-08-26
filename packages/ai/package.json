@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@kayamo/config": "workspace:*",
+    "@types/node": "^20",
     "eslint": "^9",
     "typescript": "^5",
     "vitest": "^3"

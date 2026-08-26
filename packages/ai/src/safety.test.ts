@@ -12,6 +12,8 @@ describe('evaluateCocoSafety', () => {
     expect(result.category).toBe(category);
     expect(result.level).toBe(level);
     expect(result.allowModel).toBe(false);
+    expect(result.message).toContain('1553');
+    expect(result.message).toContain('NCMH');
   });
 
   it('allows an ordinary planning message', () => {

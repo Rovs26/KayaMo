@@ -17,6 +17,7 @@ export type AgentRunTelemetryWrite = {
   outcome: 'model' | 'fallback' | 'safety' | 'budget';
   errorCode: string;
   updatedAt: string;
+  agent?: string;
 };
 
 /** Stores operational metadata only. Prompt, response, health, and journal content are excluded. */
@@ -27,7 +28,7 @@ export async function insertAgentRunTelemetry(
   const { error } = await client.from('agent_runs').insert({
     id: event.id,
     user_id: event.userId,
-    agent: 'coco',
+    agent: event.agent ?? 'coco',
     trigger: event.trigger,
     input: {},
     output: {},

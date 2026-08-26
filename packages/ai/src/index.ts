@@ -2,13 +2,27 @@ export const PACKAGE = '@kayamo/ai';
 
 export {
   completeObject,
+  AiBudgetError,
   AiConfigError,
   type AiTier,
+  type CompleteObjectDeps,
   type GenerateObjectFn,
 } from './router';
 export { extractNutritionLabel, LABEL_OCR_SYSTEM } from './ocr-label';
-export { InMemoryCocoBudgetStore } from './budget';
-export type { CocoBudgetStore, CocoUsage } from './budget';
+export { createMemoryAiBudgetGate, InMemoryCocoBudgetStore } from './budget';
+export type { AiBudgetGate, CocoBudgetStore, CocoUsage } from './budget';
+export {
+  foodExtractAmbiguitySchema,
+  foodExtractItemSchema,
+  foodExtractSchema,
+  LLM_FOOD_LOGGING_SCHEMAS,
+} from './food-extract';
+export type { FoodExtract, FoodExtractAmbiguity, FoodExtractItem } from './food-extract';
+export { MemoryPhraseCache, normalizeFoodPhrase } from './phrase-cache';
+export type { PhraseCache } from './phrase-cache';
+export { formatPhSupportFooter, PH_SUPPORT_RESOURCES } from './ph-support';
+export type { PhSupportResource } from './ph-support';
+export { nutritionKeysInZod, FORBIDDEN_LLM_NUTRITION_KEYS } from './llm-nutrition-guard';
 export {
   cocoActionNameSchema,
   cocoActionProposalSchema,

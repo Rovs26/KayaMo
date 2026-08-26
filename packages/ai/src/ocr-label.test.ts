@@ -50,6 +50,7 @@ describe('extractNutritionLabel', () => {
         },
         {
           generateObject: async () => ({ object: { kcal: 'hot' } }),
+          allowNutritionKeys: true,
         },
       ),
     ).rejects.toThrow();

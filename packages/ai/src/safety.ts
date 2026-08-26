@@ -1,4 +1,5 @@
 import type { CocoSafetyResult } from './contracts';
+import { formatPhSupportFooter } from './ph-support';
 
 const SELF_HARM = [
   /\b(kill|hurt) myself\b/i,
@@ -28,6 +29,10 @@ function matchesAny(value: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(value));
 }
 
+function withSupportResources(message: string): string {
+  return `${message}\n\n${formatPhSupportFooter()}`;
+}
+
 export function evaluateCocoSafety(message: string): CocoSafetyResult {
   if (matchesAny(message, SELF_HARM)) {
     return {
@@ -35,8 +40,9 @@ export function evaluateCocoSafety(message: string): CocoSafetyResult {
       category: 'self_harm',
       allowModel: false,
       showEmergencyPrompt: true,
-      message:
+      message: withSupportResources(
         "I'm really glad you told me. Please contact local emergency services or a crisis line now, and if you can, stay with someone you trust. Coco cannot provide emergency care.",
+      ),
     };
   }
   if (matchesAny(message, MEDICAL_EMERGENCY)) {
@@ -45,8 +51,9 @@ export function evaluateCocoSafety(message: string): CocoSafetyResult {
       category: 'medical_emergency',
       allowModel: false,
       showEmergencyPrompt: true,
-      message:
+      message: withSupportResources(
         'This may need urgent medical help. Contact local emergency services now. Coco cannot diagnose or provide emergency care.',
+      ),
     };
   }
   if (matchesAny(message, ABUSE)) {
@@ -55,8 +62,9 @@ export function evaluateCocoSafety(message: string): CocoSafetyResult {
       category: 'abuse',
       allowModel: false,
       showEmergencyPrompt: true,
-      message:
+      message: withSupportResources(
         'Your safety matters. If you are in immediate danger, contact local emergency services or move to a safer place if you can. Consider reaching out to someone you trust.',
+      ),
     };
   }
   if (matchesAny(message, EATING_DISORDER)) {
@@ -65,8 +73,9 @@ export function evaluateCocoSafety(message: string): CocoSafetyResult {
       category: 'eating_disorder',
       allowModel: false,
       showEmergencyPrompt: false,
-      message:
+      message: withSupportResources(
         "I can't help with starvation, purging, or unsafe restriction. You deserve support that protects your health; consider contacting a qualified clinician or someone you trust.",
+      ),
     };
   }
   return {

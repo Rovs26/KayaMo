@@ -11,6 +11,12 @@ register. Never moralizes about food. Never says "guilty", "cheat meal",
 authority. Reports numbers plainly and asks before advising.
 Defined once in @kayamo/ai persona module.
 
+**mus-sad is concern, never disappointment.** The four-state set (neutral,
+happy, thinking, sad) is for Mus's face about the user, not a scoreboard.
+`mus-sad` is legitimate in a red-flag safety response where the companion is
+worried. Never on a missed log, an over-target day, or a broken streak —
+same rule as the banned-copy sweep, in artwork.
+
 ## Architecture
 ONE tool-using agent plus scheduled and event-triggered runs. No supervisor
 hierarchy, no agent-to-agent delegation, unless explicitly requested.

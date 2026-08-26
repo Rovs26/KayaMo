@@ -99,8 +99,8 @@ export function FoodRecordSheet({
         <div className={styles.confirmCard} role="dialog" aria-label="Remove record">
           <p>Remove {entry.food_name_snapshot.toLowerCase()} from this day?</p>
           <small>
-            This day’s total drops by {Math.round(Number(entry.kcal))} kcal. Grove points it already
-            earned stay where they are.
+            This day’s total drops by {Math.round(Number(entry.kcal))} kcal. Grove points already
+            confirmed stay where they are.
           </small>
           <button className={styles.dangerButton} type="button" onClick={() => void remove()}>
             Remove the record

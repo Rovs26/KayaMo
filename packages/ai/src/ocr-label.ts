@@ -1,5 +1,5 @@
 import { nutritionLabelOcrSchema, type NutritionLabelOcr } from '@kayamo/food/label-ocr';
-import { completeObject, type GenerateObjectFn } from './router';
+import { completeObject, type CompleteObjectDeps } from './router';
 
 export const LABEL_OCR_SYSTEM = `You extract numbers from a photograph of a packaged-food nutrition facts panel.
 
@@ -14,7 +14,7 @@ Rules:
 
 export async function extractNutritionLabel(
   input: { image: Uint8Array; mediaType: string; userId: string },
-  deps: { generateObject?: GenerateObjectFn } = {},
+  deps: CompleteObjectDeps = {},
 ): Promise<NutritionLabelOcr> {
   return completeObject(
     {
@@ -40,6 +40,6 @@ export async function extractNutritionLabel(
         },
       ],
     },
-    deps,
+    { ...deps, allowNutritionKeys: true },
   );
 }
