@@ -1,6 +1,6 @@
 export type NativePorts = {
   isNativeApp: () => boolean;
-  registerPushIfNative?: () => Promise<void>;
+  registerPushIfNative?: () => Promise<string | null>;
 };
 
 export type AuthRedirectPorts = {
