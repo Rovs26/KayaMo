@@ -193,6 +193,11 @@ export type LocalRestTimer = {
   ends_at: string;
 };
 
+export type LocalFoodCacheAccess = {
+  id: string;
+  accessed_at: number;
+};
+
 /**
  * Last known guidance from the server, kept so Health can still show a target
  * offline. A read cache only — it is never queued for sync.
@@ -248,6 +253,7 @@ export class KayaMoDB extends Dexie {
   circles!: Table<LocalCircle, string>;
   social_prefs!: Table<LocalSocialPrefs, string>;
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
+  food_cache_access!: Table<LocalFoodCacheAccess, string>;
   sync_queue!: Table<SyncQueueItem, string>;
 
   constructor() {
@@ -330,6 +336,9 @@ export class KayaMoDB extends Dexie {
     this.version(12).stores({
       circles: 'id, user_id, kind, updated_at, deleted_at',
       social_prefs: 'user_id, updated_at',
+    });
+    this.version(13).stores({
+      food_cache_access: 'id, accessed_at',
     });
   }
 }

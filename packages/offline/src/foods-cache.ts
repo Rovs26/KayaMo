@@ -1,8 +1,46 @@
 import type { Food, Serving } from '@kayamo/db';
 import { getOfflineDb } from './db';
 
+/** iOS Safari quotas are tight. Cap remote catalog rows; never evict user or PH-core foods. */
+export const FOOD_CACHE_MAX = 400;
+
+const EVICTABLE = new Set(['usda_fdc', 'off']);
+
+async function touchAccess(id: string): Promise<void> {
+  await getOfflineDb().food_cache_access.put({ id, accessed_at: Date.now() });
+}
+
+export async function evictFoodCacheLru(max = FOOD_CACHE_MAX): Promise<number> {
+  const db = getOfflineDb();
+  const foods = (await db.foods.toArray()).filter(
+    (row) => !row.deleted_at && EVICTABLE.has(row.source),
+  );
+  if (foods.length <= max) return 0;
+
+  const access = await db.food_cache_access.bulkGet(foods.map((row) => row.id));
+  const accessedAt = new Map<string, number>();
+  foods.forEach((food, index) => {
+    accessedAt.set(food.id, access[index]?.accessed_at ?? 0);
+  });
+  const ranked = [...foods].sort(
+    (a, b) => (accessedAt.get(a.id) ?? 0) - (accessedAt.get(b.id) ?? 0),
+  );
+  const overflow = ranked.slice(0, foods.length - max);
+  const ids = overflow.map((row) => row.id);
+  await db.transaction('rw', db.foods, db.servings, db.food_cache_access, async () => {
+    await db.foods.bulkDelete(ids);
+    await db.food_cache_access.bulkDelete(ids);
+    for (const id of ids) {
+      await db.servings.where('food_id').equals(id).delete();
+    }
+  });
+  return ids.length;
+}
+
 export async function cacheFood(food: Food): Promise<void> {
   await getOfflineDb().foods.put(food);
+  await touchAccess(food.id);
+  await evictFoodCacheLru();
 }
 
 export async function cacheFoodWithServings(food: Food, servings: Serving[]): Promise<void> {
@@ -14,11 +52,14 @@ export async function cacheFoodWithServings(food: Food, servings: Serving[]): Pr
       await db.servings.bulkPut(servings);
     }
   });
+  await touchAccess(food.id);
+  await evictFoodCacheLru();
 }
 
 export async function getCachedFood(id: string): Promise<Food | undefined> {
   const food = await getOfflineDb().foods.get(id);
   if (!food || food.deleted_at) return undefined;
+  await touchAccess(id);
   return food;
 }
 

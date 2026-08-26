@@ -386,6 +386,7 @@ export function startSync(deps: SyncDeps): () => void {
   };
   const onOffline = () => setOnlineFlag(false);
   const onVisible = () => {
+    // iOS: no Background Sync. Drain when the PWA becomes visible again.
     if (document.visibilityState === 'visible') drainSoon();
   };
   const onFocus = () => drainSoon();

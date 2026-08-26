@@ -4,6 +4,8 @@
 html,
 body {
   min-height: 100%;
+  /* Standalone PWA / Capacitor: the browser pull-to-refresh fights sheets. */
+  overscroll-behavior: none;
 }
 
 body {

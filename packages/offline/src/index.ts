@@ -174,10 +174,12 @@ export {
 export {
   cacheFood,
   cacheFoodWithServings,
+  evictFoodCacheLru,
   getCachedFood,
   getCachedServings,
   getFoodReadThrough,
   listCachedFoodsWithServings,
+  FOOD_CACHE_MAX,
 } from './foods-cache';
 export {
   useLiveFoodEntries,

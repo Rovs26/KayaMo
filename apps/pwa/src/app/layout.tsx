@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import localFont from 'next/font/local';
 import './globals.css';
@@ -30,10 +30,17 @@ const plex = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'KayaMo — Coco AI Companion',
-  description: 'A supportive AI companion for daily consistency, health, and goals.',
+  title: 'KayaMo',
+  description: 'Personal Growth OS. Mus is the companion — mustard seed, not a coach.',
   applicationName: 'KayaMo',
-  appleWebApp: { capable: true, title: 'KayaMo', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'KayaMo', statusBarStyle: 'black-translucent' },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#1F3D2B',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
