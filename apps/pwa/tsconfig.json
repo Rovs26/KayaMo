@@ -8,6 +8,7 @@
       "@kayamo/db": ["../../packages/db/src"],
       "@kayamo/db/*": ["../../packages/db/src/*"],
       "@kayamo/features": ["../../packages/features/src"],
+      "@kayamo/features/auth": ["../../packages/features/src/auth/server.ts"],
       "@kayamo/features/app-shell.module.css": [
         "../../packages/features/src/screens/kayamo-app.module.css"
       ],

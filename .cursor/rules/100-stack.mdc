@@ -9,7 +9,7 @@ Vercel AI SDK · Zod · Vitest · Playwright · Capacitor · pnpm + turbo.
 
 Do not substitute a library without asking.
 
-Commands: `pnpm dev:pwa`, `pnpm dev:admin`, `pnpm build`, `pnpm test`,
+Commands: `pnpm dev:pwa`, `pnpm dev:web`, `pnpm dev:admin`, `pnpm build`, `pnpm test`,
 `pnpm typecheck`, `pnpm db:migrate`, `pnpm ph-core:build`.
 
 - Server Components by default; "use client" only where interaction requires it.

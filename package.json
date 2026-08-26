@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:pwa": "turbo run dev --filter=@kayamo/pwa",
+    "dev:web": "turbo run dev --filter=@kayamo/web",
     "dev:admin": "turbo run dev --filter=@kayamo/admin",
     "build": "turbo run build",
     "lint": "turbo run lint",

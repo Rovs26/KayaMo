@@ -11,4 +11,14 @@ describe('authRedirectTo', () => {
       }),
     ).toBe('kayamo://auth/callback');
   });
+
+  it('returns the after-auth path when window is unavailable', () => {
+    expect(
+      authRedirectTo({
+        afterAuthPath: '/app/food',
+        isNativeApp: () => false,
+        nativeCallbackUrl: 'kayamo://auth/callback',
+      }),
+    ).toBe('/app/food');
+  });
 });

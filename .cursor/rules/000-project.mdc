@@ -10,6 +10,7 @@ Bundle ID `ph.kayamo.app`. AI companion is named Mus.
 
 ## Monorepo layout — put code in the right place
 - `apps/pwa`    — mobile-first user app. Routes, nav chrome, thin glue only.
+- `apps/web`    — desktop review shell. Keyboard-first, data-dense.
 - `apps/admin`  — internal tools, auth-gated, never public.
 - `apps/mobile` — Capacitor shell. Native code only, zero business logic.
 - `packages/features` — screen logic, data hooks, layout-neutral components.

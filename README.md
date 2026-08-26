@@ -7,6 +7,7 @@ that speaks Taglish. Sibling to KitaMo.
 kayamo/
 ├── apps/
 │   ├── pwa/          → mobile web (Next.js, installable PWA; Capacitor wraps this)
+│   ├── web/          → desktop review (sidebar, food history)
 │   ├── admin/        → internal tools, auth-gated
 │   └── mobile/       → Capacitor shell for Android + iOS
 ├── packages/

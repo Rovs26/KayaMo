@@ -1,29 +1,14 @@
 import { createCookieSupabase } from '@kayamo/db';
+import { authCallbackNextPath, isAuthOtpType } from '@kayamo/features/auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const OTP_TYPES = [
-  'magiclink',
-  'email',
-  'signup',
-  'invite',
-  'recovery',
-  'email_change',
-] as const;
-
-type OtpType = (typeof OTP_TYPES)[number];
-
-function isOtpType(value: string): value is OtpType {
-  return (OTP_TYPES as readonly string[]).includes(value);
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const tokenHash = url.searchParams.get('token_hash');
   const otpType = url.searchParams.get('type');
-  const nextPath = url.searchParams.get('next') ?? '/app';
-  const next = nextPath.startsWith('/') ? nextPath : '/app';
+  const next = authCallbackNextPath(url.searchParams.get('next'), '/app');
   const destination = new URL(next, url.origin);
 
   const cookieStore = await cookies();
@@ -43,7 +28,7 @@ export async function GET(request: Request) {
     if (!error) return response;
   }
 
-  if (tokenHash && otpType && isOtpType(otpType)) {
+  if (tokenHash && otpType && isAuthOtpType(otpType)) {
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: otpType,

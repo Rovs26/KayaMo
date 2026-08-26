@@ -9,6 +9,7 @@ Build chapters (the only `chNN` numbers): `docs/build/README.md`.
 ```bash
 pnpm install
 pnpm dev:pwa          # user app
+pnpm dev:web          # desktop review shell
 pnpm dev:admin        # internal tools
 pnpm build
 pnpm test
@@ -24,6 +25,7 @@ pnpm mobile:sync      # copy PWA build into the Capacitor shell
 | Path | Holds | Never holds |
 |---|---|---|
 | `apps/pwa` | mobile-first routes, nav chrome, glue | domain logic, formulas |
+| `apps/web` | desktop shell, sidebar, Cmd+K | domain logic, formulas |
 | `apps/admin` | internal dashboards | anything user-facing |
 | `apps/mobile` | native plugin wiring | UI, business logic |
 | `packages/features` | screen logic, data hooks, layout-neutral UI | routing, nav chrome |
