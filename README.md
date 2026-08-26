@@ -19,7 +19,7 @@ kayamo/
 │   └── config/       → shared eslint/ts/tailwind presets
 ├── data/ph-core/     → the Philippine food dataset (your moat)
 ├── supabase/         → migrations + edge functions
-├── docs/             → compliance, breach runbook, legal drafts
+├── docs/             → build guide (`docs/build`), compliance, inventories
 └── .cursor/rules/    → the constitution Cursor reads
 ```
 
@@ -28,7 +28,7 @@ kayamo/
 2. Rename it to `@kayamo/pwa` in its package.json
 3. `cp .env.example .env.local` and fill it in
 4. `pnpm install`
-5. Open Cursor, set Grok 4.6 to **xhigh**, and start at Chapter 1 of the build guide
+5. Open Cursor, set Grok 4.6 to **xhigh**, and start at Chapter 1 of [`docs/build/README.md`](docs/build/README.md)
 
 ## Why this shape
 The PWA is the product. Admin exists so internal tooling and service-role

@@ -3,6 +3,7 @@
 Personal Growth OS. PWA → Android → iOS.
 Solo developer. Bundle ID `ph.kayamo.app`. AI companion: Mus.
 Canonical product: `Mus_Build_Source_of_Truth.md`. ADR: `docs/adr/001-mus-source-of-truth.md`.
+Build chapters (the only `chNN` numbers): `docs/build/README.md`.
 
 ## Commands
 ```bash
@@ -31,6 +32,7 @@ pnpm mobile:sync      # copy PWA build into the Capacitor shell
 | `packages/ai` | router, tools, agent, safety, memory | nutrition math |
 | `packages/offline` | Dexie, sync queue | domain logic |
 | `packages/ui` | tokens, primitives | app-specific screens |
+| `docs/build` | KayaMo build-guide chapters 0–36 | Mus SoT phase numbers as `chNN` |
 
 Packages never import from apps.
 

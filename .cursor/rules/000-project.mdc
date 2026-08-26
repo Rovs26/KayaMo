@@ -39,4 +39,13 @@ If a formula or a resolver appears inside `apps/`, that is a bug.
 - pnpm workspaces + turbo. TypeScript strict. No `any`.
 - The service-role Supabase client is never imported into a "use client" file.
 - All LLM calls route through @kayamo/ai `router.ts`.
-- One chapter per commit, prefixed `chNN:`.
+- One chapter per commit. See chapter numbering below.
+
+## Chapter numbering — one system only
+`chNN` in a commit message ALWAYS refers to `docs/build/`. It NEVER refers
+to Mus source-of-truth phase numbers. Build-guide ch20 is the weekly
+check-in; ch23 is the progression engine; ch24 links training to
+nutrition. If work comes from the Mus SoT instead, prefix the commit
+`mus:` and name the feature — never a bare number.
+Before starting any chapter, read `docs/build/README.md` and confirm the
+number against the checklist there.

@@ -9,6 +9,6 @@ KayaMo is the shipped product name for now. Companion is **Mus** (mustard seed).
 
 Five tabs only: **Home** (Daily Command Center), **Goals**, **Life** (areas; Physical Self holds food/gym), **Grove** (XP/tree/story), **Mus** (full chat). No sixth primary add tab.
 
-Phase 0–5 are in. Phase 6 is **Circles**: optional, private-first named groups with per-circle visibility and a compile preview. Social stays off by default. Do not invent members, a feed, follower counts, or partner rewards. Do not share nutrition, weight, journals, faith, or money. Do not start other life-area modules or a sixth tab. Do not silently drop §37 inventory — mark `SHIPPED` / `PLANNED` / `DEFERRED_*`.
+Phase 0–5 are in. Phase 6 is **Circles**: optional, private-first named groups with per-circle visibility and a compile preview. Social stays off by default. Do not invent members, a feed, follower counts, or partner rewards. Do not share nutrition, weight, journals, faith, or money. Do not start other life-area modules or a sixth tab. Do not silently drop §37 inventory — mark `SHIPPED` / `PLANNED` / `DEFERRED_*`. Commits for this file use `mus:`, never a build-guide `chNN`.
 
 Mus proposes; the user confirms writes. Stored data is not automatically AI-readable. XP never decreases. Use **Released**, not failed, when a goal is set down. No shame copy, no tree death, no diagnoses, no “God told me”.
