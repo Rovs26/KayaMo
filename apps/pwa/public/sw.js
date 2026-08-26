@@ -2,13 +2,10 @@
  * Service worker — Workbox recipes, inlined because /sw.js CSP is script-src 'self'.
  *
  * - App shell: precache offline fallbacks on install
- * - Food lookups (/api/foods/* GET): stale-while-revalidate
- * - Other API GET: network-first
+ * - API requests: network-only; authenticated responses never enter Cache Storage
  * - Navigations: network-only (user data lives in IndexedDB), offline fallback
  */
-const CACHE = 'kayamo-public-v2';
-const FOOD_CACHE = 'kayamo-food-swr-v1';
-const API_CACHE = 'kayamo-api-v1';
+const CACHE = 'kayamo-public-v3';
 const OFFLINE_URL = '/offline';
 const OFFLINE_APP_URL = '/offline/app';
 
@@ -33,7 +30,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  const keep = new Set([CACHE, FOOD_CACHE, API_CACHE]);
+  const keep = new Set([CACHE]);
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key.startsWith('kayamo-') && !keep.has(key)).map((key) => caches.delete(key))),
@@ -42,49 +39,14 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const network = fetch(request).then((response) => {
-    if (response.ok) {
-      void cache.put(request, response.clone());
-    }
-    return response;
-  });
-  if (cached) {
-    void network.catch(() => undefined);
-    return cached;
-  }
-  return network;
-}
-
-async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      void cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    throw new Error('offline');
-  }
-}
-
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith('/auth/')) return;
 
-  if (url.pathname.startsWith('/api/foods')) {
-    event.respondWith(staleWhileRevalidate(request, FOOD_CACHE));
-    return;
-  }
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request, API_CACHE).catch(() => caches.match(OFFLINE_URL)));
+    event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 
