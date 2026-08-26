@@ -67,17 +67,30 @@ describe('offline daily loop', () => {
   });
 
   it('keeps reflection and gratitude local-only', async () => {
+    const privateReflection = 'KAYAMO_PRIVATE_REFLECTION_SENTINEL_94721';
+    const privateGratitude = 'KAYAMO_PRIVATE_GRATITUDE_SENTINEL_94721';
+    await saveLocalDailyPlan({
+      userId: 'user-a', logicalDate: '2026-08-22',
+      tomorrowNote: 'Review the plan after breakfast.',
+    });
     await completeLocalEveningReflection({
       userId: 'user-a', logicalDate: '2026-08-22',
-      reflection: 'I returned after a difficult day.', gratitude: 'A friend checked in.',
+      reflection: privateReflection, gratitude: privateGratitude,
     });
     const entries = await getOfflineDb().local_journal_entries.toArray();
     expect(entries.map((row) => row.kind).sort()).toEqual(['gratitude', 'reflection']);
+    expect(entries.find((row) => row.kind === 'reflection')?.content).toBe(privateReflection);
+    expect(entries.find((row) => row.kind === 'gratitude')?.content).toBe(privateGratitude);
+
+    const plan = await getLocalDailyPlan('user-a', '2026-08-22');
+    expect(plan?.tomorrow_note).toBe('Review the plan after breakfast.');
+    expect(JSON.stringify(plan)).not.toContain(privateReflection);
+    expect(JSON.stringify(plan)).not.toContain(privateGratitude);
+
     const queue = await getOfflineDb().sync_queue.toArray();
     expect(queue.every((item) => item.table !== ('local_journal_entries' as never))).toBe(true);
-    expect((await getLocalDailyPlan('user-a', '2026-08-22'))?.tomorrow_note).toBe(
-      'I returned after a difficult day.',
-    );
+    expect(JSON.stringify(queue)).not.toContain(privateReflection);
+    expect(JSON.stringify(queue)).not.toContain(privateGratitude);
   });
 
   it('lists focus history across days for duration learning', async () => {

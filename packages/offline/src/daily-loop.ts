@@ -91,7 +91,6 @@ export async function completeLocalEveningReflection(input: {
     ...plan,
     evening_completed_at: at,
     updated_at: at,
-    tomorrow_note: input.reflection?.trim() || plan.tomorrow_note,
   };
   await db.daily_plans.put(completed);
   await enqueueUpsert('daily_plans', completed.id, planPayload(completed));
