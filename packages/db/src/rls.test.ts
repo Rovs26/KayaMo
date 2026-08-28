@@ -57,6 +57,10 @@ import {
   upsertDailyPlan,
   upsertFocusSession,
 } from './queries/daily-loop';
+import {
+  listMusContextPermissions,
+  setMusContextPermission,
+} from './queries/mus-context';
 
 const configured = isDbTestConfigured();
 
@@ -1195,6 +1199,93 @@ describeWithDatabase('RLS and tombstones', () => {
     } as never);
     expect(unsafeError).toBeTruthy();
     expect((await getCompanionState(userA.client, userA.id))?.total_points).toBe(10);
+  });
+
+  it('keeps Mus context permissions default-off and owner isolated', async () => {
+    expect(await listMusContextPermissions(userA.client, userA.id)).toEqual([]);
+
+    const physicalId = randomUUID();
+    const { data: inserted, error: insertError } = await userA.client
+      .from('mus_context_permissions')
+      .insert({
+        id: physicalId,
+        user_id: userA.id,
+        domain: 'physical_self',
+        updated_at: '2026-08-28T01:00:00.000Z',
+      })
+      .select('*')
+      .single();
+    if (insertError) throw insertError;
+    expect(inserted.allowed).toBe(false);
+
+    const enabled = await setMusContextPermission(userA.client, {
+      userId: userA.id,
+      domain: 'physical_self',
+      allowed: true,
+      updatedAt: '2026-08-28T01:01:00.000Z',
+    });
+    expect(enabled.allowed).toBe(true);
+    expect(await listMusContextPermissions(userB.client, userA.id)).toEqual([]);
+
+    const { data: crossUpdate, error: crossUpdateError } = await userB.client
+      .from('mus_context_permissions')
+      .update({ allowed: false, updated_at: '2026-08-28T01:02:00.000Z' })
+      .eq('id', physicalId)
+      .select('id');
+    if (crossUpdateError) throw crossUpdateError;
+    expect(crossUpdate).toEqual([]);
+
+    const { error: forgedInsertError } = await userB.client
+      .from('mus_context_permissions')
+      .insert({
+        id: randomUUID(),
+        user_id: userA.id,
+        domain: 'memory',
+        allowed: true,
+        updated_at: '2026-08-28T01:03:00.000Z',
+      });
+    expect(forgedInsertError).toBeTruthy();
+
+    const { error: invalidDomainError } = await userA.client
+      .from('mus_context_permissions')
+      .insert({
+        id: randomUUID(),
+        user_id: userA.id,
+        domain: 'journal',
+        allowed: true,
+        updated_at: '2026-08-28T01:04:00.000Z',
+      } as never);
+    expect(invalidDomainError).toBeTruthy();
+
+    const { error: ownerDeleteError } = await userA.client
+      .from('mus_context_permissions')
+      .delete()
+      .eq('id', physicalId);
+    expect(ownerDeleteError).toBeTruthy();
+
+    const { error: anonSelectError } = await anon
+      .from('mus_context_permissions')
+      .select('*');
+    expect(anonSelectError).toBeTruthy();
+    const { error: anonInsertError } = await anon
+      .from('mus_context_permissions')
+      .insert({
+        id: randomUUID(),
+        user_id: userA.id,
+        domain: 'goals_planning',
+        allowed: true,
+        updated_at: '2026-08-28T01:04:30.000Z',
+      });
+    expect(anonInsertError).toBeTruthy();
+
+    const revoked = await setMusContextPermission(userA.client, {
+      userId: userA.id,
+      domain: 'physical_self',
+      allowed: false,
+      updatedAt: '2026-08-28T01:05:00.000Z',
+    });
+    expect(revoked.allowed).toBe(false);
+    expect((await listMusContextPermissions(userA.client, userA.id))[0]?.allowed).toBe(false);
   });
 });
 

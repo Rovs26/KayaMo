@@ -35,7 +35,12 @@ function request(overrides: Partial<CocoRequest> = {}): CocoRequest {
       health: { mealsLogged: 0, weightLogged: false, workoutStatus: 'none' },
       goals: [],
       memories: [],
-      permissions: { health: true, faith: false, memory: false },
+      permissions: {
+        goals_planning: true,
+        physical_self: true,
+        faith: false,
+        memory: false,
+      },
     },
     ...overrides,
   };

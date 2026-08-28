@@ -12,6 +12,27 @@ export { extractNutritionLabel, LABEL_OCR_SYSTEM } from './ocr-label';
 export { createMemoryAiBudgetGate, InMemoryCocoBudgetStore } from './budget';
 export type { AiBudgetGate, CocoBudgetStore, CocoUsage } from './budget';
 export {
+  MUS_CONTEXT_PERMISSION_DOMAINS,
+  defaultMusContextPermissions,
+  musContextPermissionDomainSchema,
+  musContextPermissionUpdateSchema,
+  musContextPermissionsFromRows,
+  musContextPermissionsSchema,
+} from './context-permissions';
+export type {
+  MusContextPermissionDomain,
+  MusContextPermissions,
+} from './context-permissions';
+export { buildAuthorizedCocoContext } from './context-gateway';
+export type {
+  FaithContextProjection,
+  GoalsPlanningContextProjection,
+  MemoryContextProjection,
+  MusContextAuthorizationAudit,
+  MusContextDomainLoaders,
+  PhysicalSelfContextProjection,
+} from './context-gateway';
+export {
   foodExtractAmbiguitySchema,
   foodExtractItemSchema,
   foodExtractSchema,

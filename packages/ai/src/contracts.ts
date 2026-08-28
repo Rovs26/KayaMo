@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { musContextPermissionsSchema } from './context-permissions';
 
 export const cocoModeSchema = z.enum([
   'chat',
@@ -359,13 +360,7 @@ export const cocoContextSnapshotSchema = z
           .strict(),
       )
       .max(20),
-    permissions: z
-      .object({
-        health: z.boolean(),
-        faith: z.boolean(),
-        memory: z.boolean(),
-      })
-      .strict(),
+    permissions: musContextPermissionsSchema,
   })
   .strict();
 export type CocoContextSnapshot = z.infer<typeof cocoContextSnapshotSchema>;

@@ -7,6 +7,7 @@ import {
   type ComplexityLevel,
   type IntegrationStatus,
 } from '@kayamo/core';
+import type { MusContextPermissionDomain, MusContextPermissions } from '@kayamo/ai';
 import {
   ArrowLeft,
   CaretRight,
@@ -30,8 +31,12 @@ export function SettingsScreen({
   onFaith,
   reminderEnabled,
   onReminder,
-  musMayReadIdentity,
-  onMusMayReadIdentity,
+  musPermissions,
+  musPermissionsLoaded,
+  musPermissionBusy,
+  musPermissionError,
+  onMusPermission,
+  onReloadMusPermissions,
   integrations,
   onGrant,
   bodyRows,
@@ -52,8 +57,12 @@ export function SettingsScreen({
   onFaith: (enabled: boolean) => void;
   reminderEnabled: boolean;
   onReminder: (enabled: boolean) => void;
-  musMayReadIdentity: boolean;
-  onMusMayReadIdentity: (enabled: boolean) => void;
+  musPermissions: MusContextPermissions;
+  musPermissionsLoaded: boolean;
+  musPermissionBusy: MusContextPermissionDomain | null;
+  musPermissionError: string | null;
+  onMusPermission: (domain: MusContextPermissionDomain, allowed: boolean) => void;
+  onReloadMusPermissions: () => void;
   integrations: IntegrationStatus[];
   onGrant: (id: IntegrationStatus['id']) => void;
   bodyRows: Array<{ id: string; label: string; value: string }>;
@@ -70,7 +79,12 @@ export function SettingsScreen({
   return (
     <div className={`${styles.flowOverlay} ${styles.flowSolid}`}>
       <div className={styles.activeHeader}>
-        <button type="button" className={styles.iconButton} aria-label="Back to Grove" onClick={onBack}>
+        <button
+          type="button"
+          className={styles.iconButton}
+          aria-label="Back to Grove"
+          onClick={onBack}
+        >
           <ArrowLeft size={21} />
         </button>
         <h1>Settings</h1>
@@ -152,35 +166,77 @@ export function SettingsScreen({
             >
               <span>{row.title}</span>
               <small>
-                {row.connected ? 'Available here' : 'Not connected'} · {ACTION_LEVEL_LABELS[row.level]}
+                {row.connected ? 'Available here' : 'Not connected'} ·{' '}
+                {ACTION_LEVEL_LABELS[row.level]}
               </small>
               <CaretRight size={15} />
             </button>
           ))}
           <p>
-            Tap to switch Suggest and Act with permission. Auto-manage is off. Calendar, health, and
-            wearables stay disconnected until a real native connection exists — nothing here is faked.
+            Tap to switch Suggest and Act with permission. Auto-manage is off. Calendar,
+            health, and wearables stay disconnected until a real native connection exists
+            — nothing here is faked.
           </p>
         </div>
 
         <p className={styles.eyebrow}>What Mus may read</p>
         <div className={styles.settingsGroup}>
-          <button type="button" onClick={() => onMusMayReadIdentity(!musMayReadIdentity)}>
-            <span>Future self and compass</span>
-            <small>{musMayReadIdentity ? 'Mus may read' : 'Private from Mus'}</small>
-            <CaretRight size={15} />
-          </button>
-          <p>Life Inbox stays private until you allow a specific item. Storage is not automatic access.</p>
+          {(
+            [
+              ['goals_planning', 'Goals and planning'],
+              ['physical_self', 'Physical Self'],
+              ['memory', 'Saved memories'],
+              ['faith', 'Faith and Scripture'],
+            ] as const
+          ).map(([domain, label]) => (
+            <button
+              key={domain}
+              type="button"
+              aria-pressed={musPermissions[domain]}
+              disabled={!musPermissionsLoaded || musPermissionBusy !== null}
+              onClick={() => onMusPermission(domain, !musPermissions[domain])}
+            >
+              <span>{label}</span>
+              <small>
+                {musPermissionBusy === domain
+                  ? 'Saving…'
+                  : musPermissions[domain]
+                    ? 'Mus may read'
+                    : 'Private from Mus'}
+              </small>
+              <CaretRight size={15} />
+            </button>
+          ))}
+          {musPermissionError ? (
+            <button type="button" onClick={onReloadMusPermissions}>
+              <span>Could not verify permissions</span>
+              <small>Retry</small>
+              <CaretRight size={15} />
+            </button>
+          ) : null}
+          <p>
+            Every category starts private. Enabling one lets Mus use only that supported
+            server-stored context. Permission to suggest or act is managed separately
+            above. Diary, evening reflection, prayer journal, Life Inbox, Future Self, and
+            Compass are not included.
+          </p>
         </div>
 
         <p className={styles.eyebrow}>People · optional</p>
         <div className={styles.settingsGroup}>
           <button type="button" onClick={onOpenCircles}>
             <span>Circles</span>
-            <small>{socialEnabled ? 'on this device · no feed' : 'social off · nothing published'}</small>
+            <small>
+              {socialEnabled
+                ? 'on this device · no feed'
+                : 'social off · nothing published'}
+            </small>
             <CaretRight size={15} />
           </button>
-          <p>You choose what each Circle would see. Journals, health numbers, faith, and money stay out.</p>
+          <p>
+            You choose what each Circle would see. Journals, health numbers, faith, and
+            money stay out.
+          </p>
         </div>
 
         <p className={styles.eyebrow}>How much to show · Mus Lite</p>
@@ -222,8 +278,8 @@ export function SettingsScreen({
           <div className={styles.privacyLead}>
             <DeviceMobile size={21} />
             <p>
-              Diary, venting and prayer entries stay on this device. They leave it only when you tap{' '}
-              <b>Remember this</b> on a message.
+              Diary, venting and prayer entries stay on this device. They leave it only
+              when you tap <b>Remember this</b> on a message.
             </p>
           </div>
           <Link className={styles.settingsRowLink} href="/about">

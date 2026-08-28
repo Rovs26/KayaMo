@@ -6,6 +6,10 @@ export {
   type ApiClientConfig,
 } from './api/api-origin';
 export { musReplyFromApi } from './mus/mus-reply';
+export {
+  loadMusContextPermissions,
+  updateMusContextPermission,
+} from './mus/context-permissions';
 export { authRedirectTo, type AuthRedirectPorts, type NativePorts } from './ports';
 export {
   authCallbackNextPath,

@@ -87,7 +87,13 @@ export {
   type InboxItemWrite,
   type PersonalRuleWrite,
 } from './identity';
-export { getProfile, recomputeLogicalDates, updateProfile } from './profiles';
+export { listMusContextPermissions, setMusContextPermission } from './mus-context';
+export {
+  getProfile,
+  getProfileTimezone,
+  recomputeLogicalDates,
+  updateProfile,
+} from './profiles';
 export type { LogicalDateRecomputeResult } from './profiles';
 export {
   insertWeightLog,

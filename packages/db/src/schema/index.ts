@@ -79,6 +79,11 @@ export {
 } from './foods';
 export type { MealTemplateItem } from './foods';
 export { compasses, futureSelves, inboxItems, personalRules } from './identity';
+export {
+  MUS_CONTEXT_DOMAINS,
+  musContextPermissions,
+  type MusContextDomain,
+} from './mus-context';
 export { profiles } from './profiles';
 export {
   achievementDefinitions,

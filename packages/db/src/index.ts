@@ -40,6 +40,7 @@ export type {
   HabitCompletion,
   InboxItem,
   MealTemplate,
+  MusContextPermission,
   NutritionTarget,
   PersonalRule,
   Profile,
@@ -76,6 +77,7 @@ export {
   getFoodLogCounts,
   getAgentSpendUsd,
   getProfile,
+  getProfileTimezone,
   getDailyLoopPreferences,
   getDailyPlan,
   incomingWins,
@@ -100,6 +102,7 @@ export {
   listEffectiveNutritionTargets,
   listExpenditureEstimates,
   listMealTemplates,
+  listMusContextPermissions,
   listAchievementDefinitions,
   listActiveHabits,
   listCompanionEvents,
@@ -160,6 +163,7 @@ export {
   listUserAchievements,
   recordCompanionEvent,
   selectCompanionCosmetic,
+  setMusContextPermission,
   tombstoneGoal,
   tombstoneGoalMilestone,
   tombstoneHabit,
@@ -179,6 +183,11 @@ export {
   upsertInboxItem,
   upsertPersonalRule,
 } from './queries';
+export {
+  MUS_CONTEXT_DOMAINS,
+  musContextPermissions,
+  type MusContextDomain,
+} from './schema/mus-context';
 export type { FoodSearchHit } from './queries';
 export { mealTemplateItemSchema } from './queries';
 export type { MealTemplateItem } from './schema';

@@ -16,6 +16,20 @@ export async function getProfile(
   return data;
 }
 
+/** Read only the non-sensitive clock setting needed to construct server context. */
+export async function getProfileTimezone(
+  client: DbClient,
+  userId: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('profiles')
+    .select('timezone')
+    .eq('user_id', userId)
+    .maybeSingle();
+  throwIfError(error);
+  return data?.timezone ?? null;
+}
+
 export async function updateProfile(
   client: DbClient,
   params: {

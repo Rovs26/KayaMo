@@ -13,7 +13,13 @@ import {
   TargetsDialog,
   TodayScreen,
   apiFetch,
+  loadMusContextPermissions,
+  updateMusContextPermission,
 } from '@kayamo/features';
+import {
+  defaultMusContextPermissions,
+  type MusContextPermissionDomain,
+} from '@kayamo/ai';
 import {
   ArrowLeft,
   ChatCircle,
@@ -119,10 +125,8 @@ import {
   logicalDateFromInstant,
   processLocalInboxItem,
   saveLocalActionGrant,
-  saveLocalCompass,
   saveLocalDailyLoopPreferences,
   saveLocalDailyPlan,
-  saveLocalFutureSelf,
   saveLocalSocialPrefs,
   setLocalGoalStatus,
   setLocalTaskCompleted,
@@ -319,6 +323,10 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
   });
   const [detailStack, setDetailStack] = useState<DetailScreen[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [musPermissions, setMusPermissions] = useState(defaultMusContextPermissions);
+  const [musPermissionsLoaded, setMusPermissionsLoaded] = useState(false);
+  const [musPermissionBusy, setMusPermissionBusy] = useState<MusContextPermissionDomain | null>(null);
+  const [musPermissionError, setMusPermissionError] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -349,6 +357,43 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
     return new URLSearchParams(window.location.search).get('action') === 'log-weight';
   });
   const [weightInput, setWeightInput] = useState('');
+
+  const reloadMusPermissions = useCallback(async () => {
+    setMusPermissionError(null);
+    setMusPermissions(defaultMusContextPermissions());
+    setMusPermissionsLoaded(false);
+    try {
+      const permissions = await loadMusContextPermissions();
+      setMusPermissions(permissions);
+      setMusPermissionsLoaded(true);
+    } catch {
+      setMusPermissions(defaultMusContextPermissions());
+      setMusPermissionsLoaded(false);
+      setMusPermissionError('Mus permissions could not be verified. All categories remain private.');
+    }
+  }, []);
+
+  const changeMusPermission = useCallback(
+    async (domain: MusContextPermissionDomain, allowed: boolean) => {
+      setMusPermissionBusy(domain);
+      setMusPermissionError(null);
+      try {
+        const permissions = await updateMusContextPermission(domain, allowed);
+        setMusPermissions(permissions);
+        setMusPermissionsLoaded(true);
+      } catch {
+        setMusPermissionError('That permission was not changed. Retry when you are connected.');
+      } finally {
+        setMusPermissionBusy(null);
+      }
+    },
+    [],
+  );
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+    void reloadMusPermissions();
+  }, [reloadMusPermissions]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1428,20 +1473,14 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
             onReminder={(enabled) => {
               void saveLocalDailyLoopPreferences({ userId, notificationsEnabled: enabled }).then(setPreferences);
             }}
-            musMayReadIdentity={futureSelf?.mus_may_read ?? compass?.mus_may_read ?? true}
-            onMusMayReadIdentity={(enabled) => {
-              void (async () => {
-                if (futureSelf) {
-                  await saveLocalFutureSelf({
-                    userId,
-                    statement: futureSelf.statement,
-                    musMayRead: enabled,
-                  });
-                }
-                await saveLocalCompass({ userId, musMayRead: enabled });
-                await refresh();
-              })();
+            musPermissions={musPermissions}
+            musPermissionsLoaded={musPermissionsLoaded}
+            musPermissionBusy={musPermissionBusy}
+            musPermissionError={musPermissionError}
+            onMusPermission={(domain, allowed) => {
+              void changeMusPermission(domain, allowed);
             }}
+            onReloadMusPermissions={() => void reloadMusPermissions()}
             integrations={integrationRows}
             onGrant={(id) => void cycleGrant(id)}
             complexity={complexity}
@@ -1616,7 +1655,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               scripture={scripture}
               onAddGoal={() => setGoalFlow({ goalId: null })}
               onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettings={openSettings}
               onChat={() => selectTab('mus')}
             />
           ) : null}
@@ -1705,7 +1744,7 @@ export function KayaMoApp({ userId, email }: { userId: string; email: string }) 
               scripture={scripture}
               onAddGoal={() => setGoalFlow({ goalId: null })}
               onOpenGoal={(goal) => setGoalFlow({ goalId: goal.id })}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettings={openSettings}
               onWeeklyReset={() => setWeeklyResetOpen(true)}
               onCloseChapter={() => setChapterOpen(true)}
               onChat={() => selectTab('mus')}

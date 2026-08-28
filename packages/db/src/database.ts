@@ -18,6 +18,7 @@ import type {
   servings,
 } from './schema/foods';
 import type { compasses, futureSelves, inboxItems, personalRules } from './schema/identity';
+import type { musContextPermissions } from './schema/mus-context';
 import type { profiles } from './schema/profiles';
 import type {
   achievementDefinitions,
@@ -60,6 +61,7 @@ export type Database = {
       compasses: TableDef<typeof compasses>;
       inbox_items: TableDef<typeof inboxItems>;
       personal_rules: TableDef<typeof personalRules>;
+      mus_context_permissions: TableDef<typeof musContextPermissions>;
       foods: TableDef<typeof foods>;
       servings: TableDef<typeof servings>;
       food_aliases: TableDef<typeof foodAliases>;
@@ -143,6 +145,8 @@ export type InboxItem = Database['public']['Tables']['inbox_items']['Row'];
 export type InboxItemInsert = Database['public']['Tables']['inbox_items']['Insert'];
 export type PersonalRule = Database['public']['Tables']['personal_rules']['Row'];
 export type PersonalRuleInsert = Database['public']['Tables']['personal_rules']['Insert'];
+export type MusContextPermission =
+  Database['public']['Tables']['mus_context_permissions']['Row'];
 export type WeightLog = Database['public']['Tables']['weight_logs']['Row'];
 export type WeightLogInsert = Database['public']['Tables']['weight_logs']['Insert'];
 export type ExpenditureEstimate =
