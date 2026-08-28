@@ -764,6 +764,180 @@ describeWithDatabase('RLS and tombstones', () => {
     expect(data).toEqual([]);
   });
 
+  it.each([
+    {
+      table: 'future_selves' as const,
+      ownerPayload: () => ({
+        user_id: userA.id,
+        statement: 'I consistently keep promises to myself.',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      forgedPayload: () => ({
+        user_id: userA.id,
+        statement: 'Forged future self',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      ownerMutation: { statement: 'I recover and keep going.' },
+    },
+    {
+      table: 'compasses' as const,
+      ownerPayload: () => ({
+        user_id: userA.id,
+        matters_now: 'Health and faithful work',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      forgedPayload: () => ({
+        user_id: userA.id,
+        matters_now: 'Forged compass',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      ownerMutation: { matters_now: 'Recovery and faithful work' },
+    },
+    {
+      table: 'inbox_items' as const,
+      ownerPayload: () => ({
+        id: `00000000-0000-4000-8000-${runId.replaceAll('-', '').slice(0, 12)}`,
+        user_id: userA.id,
+        kind: 'note',
+        content: 'Private inbox note',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      forgedPayload: () => ({
+        id: randomUUID(),
+        user_id: userA.id,
+        kind: 'note',
+        content: 'Forged inbox note',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      ownerMutation: { content: 'Updated private inbox note' },
+    },
+    {
+      table: 'personal_rules' as const,
+      ownerPayload: () => ({
+        id: `10000000-0000-4000-8000-${runId.replaceAll('-', '').slice(0, 12)}`,
+        user_id: userA.id,
+        title: 'Do the next honest action',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      forgedPayload: () => ({
+        id: randomUUID(),
+        user_id: userA.id,
+        title: 'Forged personal rule',
+        updated_at: '2026-08-23T06:00:00.000Z',
+        deleted_at: null,
+      }),
+      ownerMutation: { title: 'Do the next faithful action' },
+    },
+  ])('enforces owner-only RLS and tombstones for $table', async (fixture) => {
+    const inserted = await userA.client
+      .from(fixture.table)
+      .insert(fixture.ownerPayload() as never)
+      .select('*')
+      .single();
+    if (inserted.error) throw inserted.error;
+
+    const ownerRead = await userA.client
+      .from(fixture.table)
+      .select('*')
+      .eq('user_id', userA.id);
+    if (ownerRead.error) throw ownerRead.error;
+    expect(ownerRead.data).toHaveLength(1);
+
+    const otherRead = await userB.client
+      .from(fixture.table)
+      .select('*')
+      .eq('user_id', userA.id);
+    if (otherRead.error) throw otherRead.error;
+    expect(otherRead.data).toEqual([]);
+
+    const forgedInsert = await userB.client
+      .from(fixture.table)
+      .insert(fixture.forgedPayload() as never);
+    expect(forgedInsert.error).toBeTruthy();
+
+    const updatedAt = '2026-08-23T06:01:00.000Z';
+    const ownerUpdate = await userA.client
+      .from(fixture.table)
+      .update({ ...fixture.ownerMutation, updated_at: updatedAt } as never)
+      .eq('user_id', userA.id)
+      .select('*');
+    if (ownerUpdate.error) throw ownerUpdate.error;
+    expect(ownerUpdate.data).toHaveLength(1);
+
+    const otherUpdate = await userB.client
+      .from(fixture.table)
+      .update({ ...fixture.ownerMutation, updated_at: '2026-08-23T06:02:00.000Z' } as never)
+      .eq('user_id', userA.id)
+      .select('*');
+    if (otherUpdate.error) throw otherUpdate.error;
+    expect(otherUpdate.data).toEqual([]);
+
+    const otherTombstone = await userB.client
+      .from(fixture.table)
+      .update({ deleted_at: updatedAt, updated_at: updatedAt } as never)
+      .eq('user_id', userA.id)
+      .select('*');
+    if (otherTombstone.error) throw otherTombstone.error;
+    expect(otherTombstone.data).toEqual([]);
+
+    const ownerDelete = await userA.client
+      .from(fixture.table)
+      .delete()
+      .eq('user_id', userA.id);
+    expect(ownerDelete.error).toBeTruthy();
+
+    const otherDelete = await userB.client
+      .from(fixture.table)
+      .delete()
+      .eq('user_id', userA.id);
+    expect(otherDelete.error).toBeTruthy();
+
+    const anonRead = await anon.from(fixture.table).select('*').eq('user_id', userA.id);
+    expect(anonRead.error).toBeTruthy();
+    const anonInsert = await anon.from(fixture.table).insert(fixture.forgedPayload() as never);
+    expect(anonInsert.error).toBeTruthy();
+
+    const deletedAt = '2026-08-23T06:03:00.000Z';
+    const tombstone = await userA.client
+      .from(fixture.table)
+      .update({ deleted_at: deletedAt, updated_at: deletedAt } as never)
+      .eq('user_id', userA.id)
+      .select('*');
+    if (tombstone.error) throw tombstone.error;
+    expect(tombstone.data).toHaveLength(1);
+    expect(tombstone.data?.[0]?.deleted_at).toBeTruthy();
+
+    const ownerTombstoneRead = await userA.client
+      .from(fixture.table)
+      .select('deleted_at')
+      .eq('user_id', userA.id);
+    if (ownerTombstoneRead.error) throw ownerTombstoneRead.error;
+    expect(ownerTombstoneRead.data).toHaveLength(1);
+    expect(new Date(ownerTombstoneRead.data?.[0]?.deleted_at ?? '').toISOString()).toBe(deletedAt);
+
+    const otherTombstoneRead = await userB.client
+      .from(fixture.table)
+      .select('deleted_at')
+      .eq('user_id', userA.id);
+    if (otherTombstoneRead.error) throw otherTombstoneRead.error;
+    expect(otherTombstoneRead.data).toEqual([]);
+
+    const staleResurrection = await userA.client
+      .from(fixture.table)
+      .update({ deleted_at: null, updated_at: '2026-08-23T06:04:00.000Z' } as never)
+      .eq('user_id', userA.id)
+      .select('*');
+    if (staleResurrection.error) throw staleResurrection.error;
+    expect(staleResurrection.data).toEqual([]);
+  });
+
   it('derives workout-set ownership and stores Brzycki only from the source set', async () => {
     const workoutId = randomUUID();
     const setId = randomUUID();
