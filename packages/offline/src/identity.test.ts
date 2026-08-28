@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getOfflineDb, resetOfflineDb, type LocalCompass } from './db';
+import {
+  getOfflineDb,
+  queueItemId,
+  resetOfflineDb,
+  type LocalCompass,
+} from './db';
 import {
   createLocalInboxItem,
   createLocalPersonalRule,
@@ -38,7 +43,9 @@ describe('offline identity and inbox', () => {
     expect(await getLocalFutureSelf('user-a')).toMatchObject({
       statement: 'I am becoming someone who keeps promises to myself.',
     });
-    const queued = await getOfflineDb().sync_queue.get(`future_selves:${row.user_id}`);
+    const queued = await getOfflineDb().sync_queue.get(
+      queueItemId('future_selves', row.user_id, row.user_id),
+    );
     expect(queued?.table).toBe('future_selves');
   });
 

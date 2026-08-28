@@ -6,7 +6,7 @@ import {
   insertAgentRunTelemetry,
 } from '@kayamo/db';
 import { draftFromOcr } from '@kayamo/food';
-import { logicalDateFromInstant } from '@kayamo/offline';
+import { logicalDateFromInstant } from '@kayamo/offline/logical-date';
 import { createServerSupabase } from '@/lib/supabase/server';
 
 const MAX_BYTES = 4 * 1024 * 1024;

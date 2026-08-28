@@ -7,8 +7,13 @@ export async function enqueueUpsert(
   payload: Record<string, unknown>,
 ): Promise<void> {
   const db = getOfflineDb();
+  const owner = payload.user_id ?? payload.created_by;
+  if (typeof owner !== 'string' || owner.length === 0) {
+    throw new Error(`Cannot queue ${table} without an owner`);
+  }
   const item: SyncQueueItem = {
-    id: queueItemId(table, entityId),
+    id: queueItemId(table, entityId, owner),
+    userId: owner,
     table,
     entityId,
     payload,
@@ -20,12 +25,21 @@ export async function enqueueUpsert(
   notifySyncStatus();
 }
 
-export async function pendingCount(): Promise<number> {
-  return getOfflineDb().sync_queue.count();
+export async function pendingCount(userId?: string): Promise<number> {
+  return userId
+    ? getOfflineDb().sync_queue.where('userId').equals(userId).count()
+    : getOfflineDb().sync_queue.count();
 }
 
-export async function dueQueueItems(now = Date.now()): Promise<SyncQueueItem[]> {
-  return getOfflineDb().sync_queue.where('nextAttemptAt').belowOrEqual(now).sortBy('nextAttemptAt');
+export async function dueQueueItems(
+  now = Date.now(),
+  userId?: string,
+): Promise<SyncQueueItem[]> {
+  const due = await getOfflineDb().sync_queue
+    .where('nextAttemptAt')
+    .belowOrEqual(now)
+    .sortBy('nextAttemptAt');
+  return userId ? due.filter((item) => item.userId === userId) : due;
 }
 
 export async function markQueueFailure(item: SyncQueueItem, nextAttemptAt: number, lastError: string): Promise<void> {

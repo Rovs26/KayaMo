@@ -178,12 +178,22 @@ export type SyncableTable =
 
 export type SyncQueueItem = {
   id: string;
+  userId: string;
   table: SyncableTable;
   entityId: string;
   payload: Record<string, unknown>;
   attempt: number;
   nextAttemptAt: number;
   lastError: string | null;
+};
+
+export type SyncCheckpoint = {
+  id: string;
+  user_id: string;
+  table: SyncableTable;
+  server_updated_at: string;
+  stable_key: string;
+  updatedAt: number;
 };
 
 export type LocalRestTimer = {
@@ -255,9 +265,10 @@ export class KayaMoDB extends Dexie {
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
   food_cache_access!: Table<LocalFoodCacheAccess, string>;
   sync_queue!: Table<SyncQueueItem, string>;
+  sync_checkpoints!: Table<SyncCheckpoint, string>;
 
-  constructor() {
-    super('kayamo');
+  constructor(name = 'kayamo:signed-out') {
+    super(name);
     this.version(1).stores({
       food_entries: 'id, user_id, logical_date, logged_at, updated_at, deleted_at',
       weight_logs: 'id, user_id, logical_date, measured_on, updated_at, deleted_at',
@@ -340,31 +351,252 @@ export class KayaMoDB extends Dexie {
     this.version(13).stores({
       food_cache_access: 'id, accessed_at',
     });
+    this.version(14)
+      .stores({
+        sync_queue: 'id, userId, nextAttemptAt, table, entityId',
+        sync_checkpoints: 'id, user_id, table, [user_id+table], updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<SyncQueueItem, string>('sync_queue')
+          .toCollection()
+          .modify((item) => {
+            if (!item.userId) {
+              const owner = item.payload.user_id ?? item.payload.created_by;
+              item.userId = typeof owner === 'string' ? owner : '';
+            }
+          });
+      });
   }
 }
 
 let instance: KayaMoDB | undefined;
+let activeDatabaseName = 'kayamo:signed-out';
+let scopeTransition: Promise<void> = Promise.resolve();
+
+const USER_SCOPED_TABLES = [
+  'food_entries',
+  'weight_logs',
+  'workouts',
+  'workout_sets',
+  'exercises',
+  'workout_plans',
+  'workout_plan_exercises',
+  'rest_timers',
+  'meal_templates',
+  'tasks',
+  'routines',
+  'routine_completions',
+  'agent_memory',
+  'coco_conversations',
+  'coco_messages',
+  'goals',
+  'goal_milestones',
+  'future_selves',
+  'compasses',
+  'inbox_items',
+  'personal_rules',
+  'habits',
+  'habit_completions',
+  'companion_events',
+  'companion_state',
+  'user_achievements',
+  'cosmetic_unlocks',
+  'daily_plans',
+  'focus_sessions',
+  'daily_loop_preferences',
+  'local_journal_entries',
+  'busy_blocks',
+  'action_grants',
+  'life_story_entries',
+  'grove_chapters',
+  'circles',
+  'social_prefs',
+  'guidance_snapshots',
+  'sync_queue',
+  'sync_checkpoints',
+] as const;
+
+const SHARED_CACHE_TABLES = [
+  'scripture_passages',
+  'achievement_definitions',
+  'evolution_stages',
+  'cosmetic_definitions',
+] as const;
+
+function accountDatabaseName(userId: string, namespace = 'default'): string {
+  return `kayamo:${encodeURIComponent(namespace)}:user:${encodeURIComponent(userId)}`;
+}
 
 export function getOfflineDb(): KayaMoDB {
   if (typeof indexedDB === 'undefined') {
     throw new Error('IndexedDB is not available');
   }
   if (!instance) {
-    instance = new KayaMoDB();
+    instance = new KayaMoDB(activeDatabaseName);
   }
   return instance;
 }
 
-export async function resetOfflineDb(): Promise<void> {
-  if (instance) {
-    instance.close();
-    await Dexie.delete('kayamo');
-    instance = undefined;
-  } else if (typeof indexedDB !== 'undefined') {
-    await Dexie.delete('kayamo');
+export async function setOfflineUserScope(
+  userId: string | null,
+  options: { namespace?: string } = {},
+): Promise<void> {
+  const transition = scopeTransition.then(() =>
+    setOfflineUserScopeInternal(userId, options),
+  );
+  scopeTransition = transition.catch(() => undefined);
+  return transition;
+}
+
+async function setOfflineUserScopeInternal(
+  userId: string | null,
+  options: { namespace?: string },
+): Promise<void> {
+  const nextName = userId
+    ? accountDatabaseName(userId, options.namespace)
+    : 'kayamo:signed-out';
+  if (nextName === activeDatabaseName && instance) return;
+  const previousName = activeDatabaseName;
+  instance?.close();
+  instance = undefined;
+  const destinationExisted = await Dexie.exists(nextName);
+  activeDatabaseName = nextName;
+  const db = getOfflineDb();
+  await db.open();
+  if (userId && previousName === 'kayamo:signed-out') {
+    await copyAccountRows('kayamo:signed-out', db, userId, true);
+  }
+  if (userId && !destinationExisted && (await Dexie.exists('kayamo'))) {
+    await copyAccountRows('kayamo', db, userId, false);
+    await copySharedCacheRows('kayamo', db, userId);
   }
 }
 
-export function queueItemId(table: SyncableTable, entityId: string): string {
-  return `${table}:${entityId}`;
+export function getOfflineDatabaseName(): string {
+  return activeDatabaseName;
+}
+
+function belongsToUser(row: Record<string, unknown>, userId: string): boolean {
+  if (row.user_id === userId || row.created_by === userId || row.userId === userId) {
+    return true;
+  }
+  const payload = row.payload;
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    ((payload as Record<string, unknown>).user_id === userId ||
+      (payload as Record<string, unknown>).created_by === userId)
+  );
+}
+
+async function copyAccountRows(
+  sourceName: string,
+  destination: KayaMoDB,
+  userId: string,
+  removeFromSource: boolean,
+): Promise<void> {
+  if (!(await Dexie.exists(sourceName)) || sourceName === destination.name) return;
+  const source = new KayaMoDB(sourceName);
+  await source.open();
+  try {
+    for (const tableName of USER_SCOPED_TABLES) {
+      const sourceTable = source.table<Record<string, unknown>, string>(tableName);
+      const rows = (await sourceTable.toArray()).filter((row) =>
+        belongsToUser(row, userId),
+      );
+      if (rows.length === 0) continue;
+      await destination.table<Record<string, unknown>, string>(tableName).bulkPut(rows);
+      if (removeFromSource) {
+        const keyPath = sourceTable.schema.primKey.keyPath;
+        if (typeof keyPath === 'string') {
+          const keys = rows
+            .map((row) => row[keyPath])
+            .filter((key): key is string => typeof key === 'string');
+          await sourceTable.bulkDelete(keys);
+        }
+      }
+    }
+    const userFoods = (await source.foods.toArray()).filter(
+      (row) => row.created_by === userId,
+    );
+    if (userFoods.length > 0) {
+      const foodIds = new Set(userFoods.map((row) => row.id));
+      const servings = (await source.servings.toArray()).filter((row) =>
+        foodIds.has(row.food_id),
+      );
+      const accessRows = (await source.food_cache_access.toArray()).filter((row) =>
+        foodIds.has(row.id),
+      );
+      await destination.foods.bulkPut(userFoods);
+      if (servings.length > 0) await destination.servings.bulkPut(servings);
+      if (accessRows.length > 0) await destination.food_cache_access.bulkPut(accessRows);
+      if (removeFromSource) {
+        await source.foods.bulkDelete([...foodIds]);
+        await source.servings.bulkDelete(servings.map((row) => row.id));
+        await source.food_cache_access.bulkDelete(accessRows.map((row) => row.id));
+      }
+    }
+  } finally {
+    source.close();
+  }
+}
+
+async function copySharedCacheRows(
+  sourceName: string,
+  destination: KayaMoDB,
+  userId: string,
+): Promise<void> {
+  const source = new KayaMoDB(sourceName);
+  await source.open();
+  try {
+    const foods = await source.foods.toArray();
+    const allowedFoods = foods.filter(
+      (row) => row.created_by === null || row.created_by === userId,
+    );
+    const allowedFoodIds = new Set(allowedFoods.map((row) => row.id));
+    if (allowedFoods.length > 0) await destination.foods.bulkPut(allowedFoods);
+    const servings = (await source.servings.toArray()).filter((row) =>
+      allowedFoodIds.has(row.food_id),
+    );
+    if (servings.length > 0) await destination.servings.bulkPut(servings);
+    const accessRows = (await source.food_cache_access.toArray()).filter((row) =>
+      allowedFoodIds.has(row.id),
+    );
+    if (accessRows.length > 0) await destination.food_cache_access.bulkPut(accessRows);
+
+    for (const tableName of SHARED_CACHE_TABLES) {
+      const rows = await source.table<Record<string, unknown>, string>(tableName).toArray();
+      if (rows.length > 0) {
+        await destination.table<Record<string, unknown>, string>(tableName).bulkPut(rows);
+      }
+    }
+  } finally {
+    source.close();
+  }
+}
+
+export async function resetOfflineDb(): Promise<void> {
+  await scopeTransition;
+  instance?.close();
+  instance = undefined;
+  if (typeof indexedDB !== 'undefined') {
+    const names = await Dexie.getDatabaseNames();
+    await Promise.all(
+      names.filter((name) => name === 'kayamo' || name.startsWith('kayamo:')).map((name) => Dexie.delete(name)),
+    );
+  }
+  activeDatabaseName = 'kayamo:signed-out';
+}
+
+export function queueItemId(
+  table: SyncableTable,
+  entityId: string,
+  userId?: string,
+): string {
+  return userId ? `${userId}:${table}:${entityId}` : `${table}:${entityId}`;
+}
+
+export function checkpointId(userId: string, table: SyncableTable): string {
+  return `${userId}:${table}`;
 }

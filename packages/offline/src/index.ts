@@ -1,7 +1,13 @@
 export const PACKAGE = '@kayamo/offline';
 
 export { backoffMs } from './backoff';
-export { getOfflineDb, resetOfflineDb, type KayaMoDB } from './db';
+export {
+  getOfflineDatabaseName,
+  getOfflineDb,
+  resetOfflineDb,
+  setOfflineUserScope,
+  type KayaMoDB,
+} from './db';
 export type {
   LocalAgentMemory,
   LocalAchievementDefinition,
@@ -48,8 +54,22 @@ export type {
   LocalWorkoutSet,
   LocalRestTimer,
   SyncQueueItem,
+  SyncCheckpoint,
   SyncableTable,
 } from './db';
+export {
+  applyPullPage,
+  fetchServerSyncPage,
+  pullRemoteChanges,
+  type PullPageFetcher,
+  type PullStats,
+  type SyncCursor,
+} from './pull';
+export {
+  BIDIRECTIONAL_SYNC_REGISTRY,
+  LOCAL_ONLY_TABLES,
+  type SyncTableSpec,
+} from './sync-registry';
 export {
   cacheGuidanceSnapshot,
   clearCachedGuidanceSnapshot,
@@ -189,7 +209,16 @@ export {
 } from './hooks';
 export { instantOnLogicalDate, localHourFromInstant, logicalDateFromInstant } from './logical-date';
 export { enqueueUpsert, pendingCount } from './queue';
-export { getSyncStatusSnapshot, startSync, type SyncDeps, type SyncStatus } from './sync';
+export {
+  getSyncStatusSnapshot,
+  startSync,
+  syncUserOnce,
+  syncNow,
+  type SyncDeps,
+  type SyncStatus,
+  type SyncPushHandler,
+  type SyncTelemetryEvent,
+} from './sync';
 export {
   listLocalFoodEntries,
   listLocalFoodHistory,

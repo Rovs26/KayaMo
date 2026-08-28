@@ -59,12 +59,34 @@ import {
   upsertWorkoutPlanExercise,
 } from '@kayamo/db';
 import { backoffMs } from './backoff';
-import { getOfflineDb, type SyncQueueItem, type SyncableTable } from './db';
+import {
+  getOfflineDb,
+  setOfflineUserScope,
+  type SyncQueueItem,
+  type SyncableTable,
+} from './db';
+import { pullRemoteChanges, type PullPageFetcher, type PullStats } from './pull';
 import { dueQueueItems, markQueueFailure, pendingCount, removeQueueItem } from './queue';
 import { notifySyncStatus, subscribeSyncStatus } from './status';
 
+export type SyncPushHandler = (client: DbClient, item: SyncQueueItem) => Promise<void>;
+
 export type SyncDeps = {
   getClient: () => DbClient;
+  fetchPage?: PullPageFetcher;
+  onTelemetry?: (event: SyncTelemetryEvent) => void;
+};
+
+export type SyncTelemetryEvent = {
+  kind: 'cycle-completed' | 'cycle-failed';
+  durationMs: number;
+  pushed: number;
+  pulled: number;
+  tombstones: number;
+  skippedStale: number;
+  conflicts: number;
+  checkpointsAdvanced: number;
+  failureCategory: string | null;
 };
 
 export type SyncStatus =
@@ -76,6 +98,7 @@ export type SyncStatus =
 const state = {
   paused: false,
   draining: false,
+  syncing: false,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
   pending: 0,
   timer: 0 as ReturnType<typeof setTimeout> | 0,
@@ -110,9 +133,9 @@ function refreshSnapshot(): void {
   snapshot = { kind: 'synced' };
 }
 
-async function refreshPending(): Promise<void> {
+async function refreshPending(userId?: string): Promise<void> {
   try {
-    state.pending = await pendingCount();
+    state.pending = await pendingCount(userId);
   } catch {
     state.pending = 0;
   }
@@ -124,11 +147,11 @@ export function resumeSync(): void {
   state.paused = false;
   refreshSnapshot();
   notifySyncStatus();
-  void drainQueue();
+  void syncNow();
 }
 
 export async function drainQueue(): Promise<void> {
-  if (state.paused || state.draining) return;
+  if (state.paused || state.draining || state.syncing) return;
   if (!state.online) {
     await refreshPending();
     return;
@@ -136,19 +159,22 @@ export async function drainQueue(): Promise<void> {
   const deps = state.deps;
   if (!deps) return;
 
-  const client = deps.getClient();
-  const { data } = await client.auth.getSession();
-  if (!data.session) {
-    state.paused = true;
-    await refreshPending();
-    return;
-  }
-
   state.draining = true;
+  let userId: string | undefined;
   try {
-    const due = await dueQueueItems();
+    const client = deps.getClient();
+    const { data } = await client.auth.getSession();
+    if (!data.session) {
+      state.paused = true;
+      await setOfflineUserScope(null);
+      return;
+    }
+    userId = data.session.user.id;
+    await setOfflineUserScope(userId);
+    const due = await dueQueueItems(Date.now(), userId);
     for (const item of due) {
       if (state.paused) break;
+      if (item.userId !== userId) continue;
       try {
         await applyItem(client, item);
         await removeQueueItem(item.id);
@@ -164,6 +190,128 @@ export async function drainQueue(): Promise<void> {
     }
   } finally {
     state.draining = false;
+    await refreshPending(userId);
+  }
+}
+
+async function pushOutbound(
+  client: DbClient,
+  userId: string,
+  pushItem: SyncPushHandler = applyItem,
+): Promise<number> {
+  let pushed = 0;
+  const due = await dueQueueItems(Date.now(), userId);
+  for (const item of due) {
+    if (state.paused || item.userId !== userId) break;
+    try {
+      await pushItem(client, item);
+      await removeQueueItem(item.id);
+      pushed += 1;
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        state.paused = true;
+        throw error;
+      }
+      const delay = backoffMs(item.attempt);
+      await markQueueFailure(item, Date.now() + delay, errorCode(error));
+      scheduleSync(delay);
+    }
+  }
+  return pushed;
+}
+
+export async function syncUserOnce(params: {
+  client: DbClient;
+  userId: string;
+  namespace?: string;
+  fetchPage?: PullPageFetcher;
+  pushItem?: SyncPushHandler;
+  tables?: readonly SyncableTable[];
+}): Promise<{ pushed: number; pull: PullStats }> {
+  await setOfflineUserScope(params.userId, { namespace: params.namespace });
+  let pushed = 0;
+  for (const item of await dueQueueItems(Date.now(), params.userId)) {
+    if (item.userId !== params.userId) continue;
+    await (params.pushItem ?? applyItem)(params.client, item);
+    await removeQueueItem(item.id);
+    pushed += 1;
+  }
+  const pull = await pullRemoteChanges({
+    client: params.client,
+    userId: params.userId,
+    fetchPage: params.fetchPage,
+    tables: params.tables,
+  });
+  await refreshPending(params.userId);
+  return { pushed, pull };
+}
+
+export async function syncNow(): Promise<void> {
+  if (
+    state.paused ||
+    state.syncing ||
+    state.draining ||
+    !state.online ||
+    !state.deps
+  ) return;
+  const startedAt = Date.now();
+  const deps = state.deps;
+  const client = deps.getClient();
+  state.syncing = true;
+  let pushed = 0;
+  let pull: PullStats = {
+    pulled: 0,
+    applied: 0,
+    tombstones: 0,
+    skippedStale: 0,
+    conflicts: 0,
+    checkpointsAdvanced: 0,
+  };
+  try {
+    const { data } = await client.auth.getSession();
+    if (!data.session) {
+      state.paused = true;
+      await setOfflineUserScope(null);
+      return;
+    }
+    const userId = data.session.user.id;
+    await setOfflineUserScope(userId);
+    pushed = await pushOutbound(client, userId);
+    if (!state.paused) {
+      pull = await pullRemoteChanges({
+        client,
+        userId,
+        fetchPage: deps.fetchPage,
+      });
+    }
+    deps.onTelemetry?.({
+      kind: 'cycle-completed',
+      durationMs: Date.now() - startedAt,
+      pushed,
+      pulled: pull.pulled,
+      tombstones: pull.tombstones,
+      skippedStale: pull.skippedStale,
+      conflicts: pull.conflicts,
+      checkpointsAdvanced: pull.checkpointsAdvanced,
+      failureCategory: null,
+    });
+  } catch (error) {
+    const category = errorCode(error);
+    if (isUnauthorizedError(error)) state.paused = true;
+    deps.onTelemetry?.({
+      kind: 'cycle-failed',
+      durationMs: Date.now() - startedAt,
+      pushed,
+      pulled: pull.pulled,
+      tombstones: pull.tombstones,
+      skippedStale: pull.skippedStale,
+      conflicts: pull.conflicts,
+      checkpointsAdvanced: pull.checkpointsAdvanced,
+      failureCategory: category,
+    });
+    if (!state.paused) scheduleSync(backoffMs(0));
+  } finally {
+    state.syncing = false;
     await refreshPending();
   }
 }
@@ -173,6 +321,14 @@ function scheduleDrain(delayMs: number): void {
   state.timer = setTimeout(() => {
     state.timer = 0;
     void drainQueue();
+  }, delayMs);
+}
+
+function scheduleSync(delayMs: number): void {
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = setTimeout(() => {
+    state.timer = 0;
+    void syncNow();
   }, delayMs);
 }
 
@@ -366,8 +522,23 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
   }
 }
 
-function drainSoon(): void {
-  void drainQueue();
+function syncSoon(): void {
+  void syncNow();
+}
+
+async function bootstrapSync(): Promise<void> {
+  const deps = state.deps;
+  if (!deps) return;
+  const { data } = await deps.getClient().auth.getSession();
+  if (!data.session) {
+    state.paused = true;
+    await setOfflineUserScope(null);
+    await refreshPending();
+    return;
+  }
+  await setOfflineUserScope(data.session.user.id);
+  state.paused = false;
+  await syncNow();
 }
 
 export function startSync(deps: SyncDeps): () => void {
@@ -378,30 +549,36 @@ export function startSync(deps: SyncDeps): () => void {
 
   setOnlineFlag(navigator.onLine);
   void refreshPending();
-  drainSoon();
+  void bootstrapSync();
 
   const onOnline = () => {
     setOnlineFlag(true);
-    drainSoon();
+    syncSoon();
   };
   const onOffline = () => setOnlineFlag(false);
   const onVisible = () => {
     // iOS: no Background Sync. Drain when the PWA becomes visible again.
-    if (document.visibilityState === 'visible') drainSoon();
+    if (document.visibilityState === 'visible') syncSoon();
   };
-  const onFocus = () => drainSoon();
+  const onFocus = () => syncSoon();
 
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('focus', onFocus);
 
-  const unsubAuth = deps.getClient().auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      resumeSync();
+  const unsubAuth = deps.getClient().auth.onAuthStateChange((event, session) => {
+    if (
+      event === 'INITIAL_SESSION' ||
+      event === 'SIGNED_IN' ||
+      event === 'TOKEN_REFRESHED'
+    ) {
+      if (session) void setOfflineUserScope(session.user.id);
+      if (session) resumeSync();
     }
     if (event === 'SIGNED_OUT') {
       state.paused = true;
+      void setOfflineUserScope(null);
       refreshSnapshot();
       notifySyncStatus();
     }

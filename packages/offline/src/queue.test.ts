@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enqueueUpsert, pendingCount } from './queue';
-import { getOfflineDb, resetOfflineDb } from './db';
+import { getOfflineDb, queueItemId, resetOfflineDb } from './db';
 import { logFoodEntry, saveMealTemplate } from './writes';
 
 vi.mock('./sync', async () => {
@@ -26,6 +26,7 @@ describe('sync queue idempotency', () => {
   it('replaces the queue row when the same entity is written twice', async () => {
     const payload = {
       id: 'entry-1',
+      user_id: 'user-1',
       kcal: '100',
       updated_at: '2026-08-16T04:00:00.000Z',
     };
@@ -34,7 +35,9 @@ describe('sync queue idempotency', () => {
 
     expect(await pendingCount()).toBe(1);
     expect(await getOfflineDb().companion_events.count()).toBe(0);
-    const item = await getOfflineDb().sync_queue.get('food_entries:entry-1');
+    const item = await getOfflineDb().sync_queue.get(
+      queueItemId('food_entries', 'entry-1', 'user-1'),
+    );
     expect(item?.payload.kcal).toBe('120');
   });
 
