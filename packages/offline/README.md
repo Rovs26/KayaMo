@@ -5,6 +5,7 @@ Dexie schema, optimistic writes, and the sync queue. Every user-facing mutation 
 **Built through:** bidirectional sync v1
 
 **Owns:**
+
 - `db.ts` — account-isolated IndexedDB mirrors, durable pull checkpoints, local-only journals, and the sync queue
 - `sync-registry.ts` — the explicit server↔device allowlist
 - `pull.ts` — paginated `(server_updated_at, stable key)` pulls and atomic merge/checkpoint transactions
@@ -12,9 +13,11 @@ Dexie schema, optimistic writes, and the sync queue. Every user-facing mutation 
 - `writes.ts` — Dexie first, then enqueue (idempotency key = `userId:table:entityId`)
 - `hooks.ts` — React bindings for sync status and live entries
 
-Sync also runs on `online`, `visibilitychange`, and `focus`. One cycle runs at a
-time and pushes queued local mutations before pulling. iOS Safari does not support
-Background Sync.
+Sync also runs on `online`, `visibilitychange`, and `focus`. Each cycle captures one
+account DB and scope epoch; an account change invalidates it before any further local
+write. One module cycle runs at a time and pushes queued local mutations before
+pulling. Cross-tab pushes remain data-safe through atomic mutation-revision checks.
+iOS Safari does not support Background Sync.
 
 ## v1 domain map
 
@@ -50,6 +53,12 @@ and table/user checkpoint are written in one Dexie transaction. A crash or curso
 write failure rolls back both. Each authenticated account uses its own IndexedDB;
 sign-out switches to an empty signed-out store without deleting another account's
 offline queue or private local data.
+
+Legacy `kayamo` migration uses a durable completion marker per source database and
+account. A partial destination never counts as complete; restart repeats idempotent,
+destination-first copies and never assigns one account's rows to another. Pull
+failures are durable and isolated per table with bounded exponential backoff, so a
+bad table does not stop later tables or make status claim the cycle is healthy.
 
 Daily plans, focus sessions, and daily-loop preferences sync through the normal
 LWW/tombstone queue. Reflection, gratitude, venting, diary, and prayer text never

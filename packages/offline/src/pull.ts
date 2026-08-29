@@ -1,10 +1,15 @@
 import type { DbClient } from '@kayamo/db';
-import { incomingWins } from '@kayamo/db';
+import { incomingWins, isUnauthorizedError } from '@kayamo/db';
 import type { Table } from 'dexie';
+import { backoffMs } from './backoff';
 import {
+  assertOfflineScope,
   checkpointId,
-  getOfflineDb,
+  getOfflineScope,
   queueItemId,
+  StaleOfflineScopeError,
+  type KayaMoDB,
+  type OfflineScope,
   type SyncCheckpoint,
   type SyncQueueItem,
   type SyncableTable,
@@ -37,6 +42,9 @@ export type PullStats = {
   skippedStale: number;
   conflicts: number;
   checkpointsAdvanced: number;
+  failedTables: SyncableTable[];
+  deferredTables: SyncableTable[];
+  nextRetryAt: number | null;
 };
 
 type SyncRecord = Record<string, unknown> & {
@@ -58,11 +66,36 @@ type SyncQueryClient = {
 
 type ApplyPageOptions = {
   beforeCheckpoint?: () => void | Promise<void>;
+  scope?: OfflineScope;
 };
 
-function compareCursor(left: SyncCursor, right: SyncCursor): number {
-  const time = left.serverUpdatedAt.localeCompare(right.serverUpdatedAt);
-  return time === 0 ? left.stableKey.localeCompare(right.stableKey) : time;
+const SERVER_TIMESTAMP =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
+
+function timestampParts(value: string): { milliseconds: number; micros: number } {
+  const match = SERVER_TIMESTAMP.exec(value);
+  if (!match) throw new Error('Invalid canonical server timestamp');
+  const milliseconds = Date.parse(`${match[1]}${match[3]}`);
+  if (!Number.isFinite(milliseconds))
+    throw new Error('Invalid canonical server timestamp');
+  return {
+    milliseconds,
+    micros: Number((match[2] ?? '').padEnd(6, '0')),
+  };
+}
+
+function lexicalCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function compareSyncCursor(left: SyncCursor, right: SyncCursor): number {
+  const leftTime = timestampParts(left.serverUpdatedAt);
+  const rightTime = timestampParts(right.serverUpdatedAt);
+  const milliseconds = leftTime.milliseconds - rightTime.milliseconds;
+  if (milliseconds !== 0) return milliseconds < 0 ? -1 : 1;
+  const micros = leftTime.micros - rightTime.micros;
+  if (micros !== 0) return micros < 0 ? -1 : 1;
+  return lexicalCompare(left.stableKey, right.stableKey);
 }
 
 function parseRecord(spec: SyncTableSpec, userId: string, value: unknown): SyncRecord {
@@ -79,7 +112,14 @@ function parseRecord(spec: SyncTableSpec, userId: string, value: unknown): SyncR
   }
   if (
     typeof serverUpdatedAt !== 'string' ||
-    !Number.isFinite(new Date(serverUpdatedAt).getTime())
+    (() => {
+      try {
+        timestampParts(serverUpdatedAt);
+        return false;
+      } catch {
+        return true;
+      }
+    })()
   ) {
     throw new Error(`Invalid server cursor in ${spec.table} sync row`);
   }
@@ -116,11 +156,11 @@ function queuedTimestamp(item: SyncQueueItem): string | null {
 }
 
 async function findQueuedMutation(
+  db: KayaMoDB,
   table: SyncableTable,
   entityId: string,
   userId: string,
 ): Promise<SyncQueueItem | undefined> {
-  const db = getOfflineDb();
   const current = await db.sync_queue.get(queueItemId(table, entityId, userId));
   if (current) return current;
   const legacy = await db.sync_queue.get(queueItemId(table, entityId));
@@ -132,6 +172,7 @@ function isTombstone(row: Record<string, unknown>): boolean {
 }
 
 async function mergeRecord(
+  db: KayaMoDB,
   spec: SyncTableSpec,
   table: Table<SyncRecord, string>,
   row: SyncRecord,
@@ -139,7 +180,7 @@ async function mergeRecord(
 ): Promise<'applied' | 'tombstone' | 'skipped' | 'conflict'> {
   const key = row[spec.stableKeyColumn] as string;
   const existing = await table.get(key);
-  const queued = await findQueuedMutation(spec.table, key, userId);
+  const queued = await findQueuedMutation(db, spec.table, key, userId);
   const remoteDeleted = spec.tombstones && isTombstone(row);
   const localDeleted = existing ? isTombstone(existing) : false;
   const queuedDeleted = queued ? isTombstone(queued.payload) : false;
@@ -148,7 +189,7 @@ async function mergeRecord(
   // over a stale live row in either direction.
   if (remoteDeleted) {
     await table.put(row);
-    if (queued) await getOfflineDb().sync_queue.delete(queued.id);
+    if (queued) await db.sync_queue.delete(queued.id);
     return 'tombstone';
   }
   if (localDeleted || queuedDeleted) return 'skipped';
@@ -156,15 +197,15 @@ async function mergeRecord(
   if (spec.table === 'companion_events') {
     const eventKey = row.event_key;
     if (typeof eventKey !== 'string') throw new Error('Malformed companion event');
-    const duplicate = await getOfflineDb().companion_events
+    const duplicate = await db.companion_events
       .where('[user_id+event_key]')
       .equals([userId, eventKey])
       .first();
     if (duplicate && duplicate.id !== key) {
-      await getOfflineDb().companion_events.delete(duplicate.id);
+      await db.companion_events.delete(duplicate.id);
     }
     await table.put(row);
-    if (queued) await getOfflineDb().sync_queue.delete(queued.id);
+    if (queued) await db.sync_queue.delete(queued.id);
     return 'applied';
   }
 
@@ -175,7 +216,7 @@ async function mergeRecord(
       return 'skipped';
     }
     await table.put(row);
-    await getOfflineDb().sync_queue.delete(queued.id);
+    await db.sync_queue.delete(queued.id);
     return 'conflict';
   }
   if (!existing || incomingWins(existing.updated_at as string, remoteUpdatedAt)) {
@@ -196,7 +237,9 @@ export async function applyPullPage(
   const spec = syncSpecFor(params.table);
   const rows = params.rows
     .map((row) => parseRecord(spec, params.userId, row))
-    .sort((left, right) => compareCursor(rowCursor(spec, left), rowCursor(spec, right)));
+    .sort((left, right) =>
+      compareSyncCursor(rowCursor(spec, left), rowCursor(spec, right)),
+    );
   const stats: PullStats = {
     pulled: rows.length,
     applied: 0,
@@ -204,10 +247,16 @@ export async function applyPullPage(
     skippedStale: 0,
     conflicts: 0,
     checkpointsAdvanced: 0,
+    failedTables: [],
+    deferredTables: [],
+    nextRetryAt: null,
   };
   if (rows.length === 0) return stats;
 
-  const db = getOfflineDb();
+  const scope = options.scope ?? getOfflineScope();
+  const { db } = scope;
+  assertOfflineScope(scope);
+  if (scope.userId !== params.userId) throw new StaleOfflineScopeError();
   const localTable = db.table<SyncRecord, string>(spec.table);
   await db.transaction(
     'rw',
@@ -217,7 +266,8 @@ export async function applyPullPage(
     db.companion_events,
     async () => {
       for (const row of rows) {
-        const result = await mergeRecord(spec, localTable, row, params.userId);
+        assertOfflineScope(scope);
+        const result = await mergeRecord(db, spec, localTable, row, params.userId);
         if (result === 'applied') stats.applied += 1;
         if (result === 'tombstone') {
           stats.applied += 1;
@@ -230,7 +280,20 @@ export async function applyPullPage(
         }
       }
       await options.beforeCheckpoint?.();
+      assertOfflineScope(scope);
       const cursor = rowCursor(spec, rows.at(-1)!);
+      const currentCheckpoint = await db.sync_checkpoints.get(
+        checkpointId(params.userId, params.table),
+      );
+      if (
+        currentCheckpoint &&
+        compareSyncCursor(cursor, {
+          serverUpdatedAt: currentCheckpoint.server_updated_at,
+          stableKey: currentCheckpoint.stable_key,
+        }) <= 0
+      ) {
+        return;
+      }
       const checkpoint: SyncCheckpoint = {
         id: checkpointId(params.userId, params.table),
         user_id: params.userId,
@@ -292,6 +355,8 @@ export async function pullRemoteChanges(params: {
   fetchPage?: PullPageFetcher;
   pageSize?: number;
   tables?: readonly SyncableTable[];
+  scope?: OfflineScope;
+  now?: () => number;
 }): Promise<PullStats> {
   const fetchPage = params.fetchPage ?? fetchServerSyncPage;
   const pageSize = params.pageSize ?? 100;
@@ -301,6 +366,10 @@ export async function pullRemoteChanges(params: {
   const specs = params.tables
     ? params.tables.map(syncSpecFor)
     : BIDIRECTIONAL_SYNC_REGISTRY;
+  const scope = params.scope ?? getOfflineScope();
+  const { db } = scope;
+  if (scope.userId !== params.userId) throw new StaleOfflineScopeError();
+  const now = params.now ?? Date.now;
   const total: PullStats = {
     pulled: 0,
     applied: 0,
@@ -308,59 +377,101 @@ export async function pullRemoteChanges(params: {
     skippedStale: 0,
     conflicts: 0,
     checkpointsAdvanced: 0,
+    failedTables: [],
+    deferredTables: [],
+    nextRetryAt: null,
   };
 
   for (const spec of specs) {
-    let checkpoint = await getOfflineDb().sync_checkpoints.get(
-      checkpointId(params.userId, spec.table),
-    );
-    for (;;) {
-      const rows = await fetchPage({
-        client: params.client,
-        userId: params.userId,
-        spec,
-        cursor: checkpoint
+    assertOfflineScope(scope);
+    const failureId = checkpointId(params.userId, spec.table);
+    const priorFailure = await db.sync_pull_failures.get(failureId);
+    if (priorFailure && priorFailure.nextRetryAt > now()) {
+      total.deferredTables.push(spec.table);
+      total.nextRetryAt = minimumRetry(total.nextRetryAt, priorFailure.nextRetryAt);
+      continue;
+    }
+    try {
+      let checkpoint = await db.sync_checkpoints.get(failureId);
+      for (;;) {
+        assertOfflineScope(scope);
+        const rows = await fetchPage({
+          client: params.client,
+          userId: params.userId,
+          spec,
+          cursor: checkpoint
+            ? {
+                serverUpdatedAt: checkpoint.server_updated_at,
+                stableKey: checkpoint.stable_key,
+              }
+            : null,
+          limit: pageSize,
+        });
+        assertOfflineScope(scope);
+        if (rows.length === 0) break;
+        if (rows.length > pageSize)
+          throw new Error('Sync page exceeded its requested limit');
+        const priorCursor = checkpoint
           ? {
               serverUpdatedAt: checkpoint.server_updated_at,
               stableKey: checkpoint.stable_key,
             }
-          : null,
-        limit: pageSize,
-      });
-      if (rows.length === 0) break;
-      if (rows.length > pageSize) throw new Error('Sync page exceeded its requested limit');
-      const priorCursor = checkpoint
-        ? {
-            serverUpdatedAt: checkpoint.server_updated_at,
-            stableKey: checkpoint.stable_key,
-          }
-        : null;
-      if (
-        priorCursor &&
-        rows.some(
-          (row) =>
-            compareCursor(rowCursor(spec, parseRecord(spec, params.userId, row)), priorCursor) <=
-            0,
-        )
-      ) {
-        throw new Error(`Non-advancing ${spec.table} sync page`);
+          : null;
+        if (
+          priorCursor &&
+          rows.some(
+            (row) =>
+              compareSyncCursor(
+                rowCursor(spec, parseRecord(spec, params.userId, row)),
+                priorCursor,
+              ) <= 0,
+          )
+        ) {
+          throw new Error(`Non-advancing ${spec.table} sync page`);
+        }
+        const page = await applyPullPage(
+          { userId: params.userId, table: spec.table, rows },
+          { scope },
+        );
+        total.pulled += page.pulled;
+        total.applied += page.applied;
+        total.tombstones += page.tombstones;
+        total.skippedStale += page.skippedStale;
+        total.conflicts += page.conflicts;
+        total.checkpointsAdvanced += page.checkpointsAdvanced;
+        checkpoint = await db.sync_checkpoints.get(failureId);
+        if (rows.length < pageSize) break;
       }
-      const page = await applyPullPage({
-        userId: params.userId,
+      await db.sync_pull_failures.delete(failureId);
+    } catch (error) {
+      if (error instanceof StaleOfflineScopeError || isUnauthorizedError(error))
+        throw error;
+      assertOfflineScope(scope);
+      const attempt = (priorFailure?.attempt ?? 0) + 1;
+      const nextRetryAt = now() + backoffMs(attempt - 1);
+      await db.sync_pull_failures.put({
+        id: failureId,
+        user_id: params.userId,
         table: spec.table,
-        rows,
+        attempt,
+        nextRetryAt,
+        lastError: pullErrorCode(error),
+        updatedAt: now(),
       });
-      total.pulled += page.pulled;
-      total.applied += page.applied;
-      total.tombstones += page.tombstones;
-      total.skippedStale += page.skippedStale;
-      total.conflicts += page.conflicts;
-      total.checkpointsAdvanced += page.checkpointsAdvanced;
-      checkpoint = await getOfflineDb().sync_checkpoints.get(
-        checkpointId(params.userId, spec.table),
-      );
-      if (rows.length < pageSize) break;
+      total.failedTables.push(spec.table);
+      total.nextRetryAt = minimumRetry(total.nextRetryAt, nextRetryAt);
     }
   }
   return total;
+}
+
+function minimumRetry(current: number | null, candidate: number): number {
+  return current === null ? candidate : Math.min(current, candidate);
+}
+
+function pullErrorCode(error: unknown): string {
+  if (error instanceof TypeError) return 'network';
+  if (error instanceof Error && error.message.toLowerCase().includes('fetch'))
+    return 'network';
+  return 'invalid-page';
 }

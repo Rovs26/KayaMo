@@ -4,8 +4,10 @@ export { backoffMs } from './backoff';
 export {
   getOfflineDatabaseName,
   getOfflineDb,
+  getOfflineScope,
   resetOfflineDb,
   setOfflineUserScope,
+  StaleOfflineScopeError,
   type KayaMoDB,
 } from './db';
 export type {
@@ -56,9 +58,11 @@ export type {
   SyncQueueItem,
   SyncCheckpoint,
   SyncableTable,
+  OfflineScope,
 } from './db';
 export {
   applyPullPage,
+  compareSyncCursor,
   fetchServerSyncPage,
   pullRemoteChanges,
   type PullPageFetcher,
@@ -207,10 +211,15 @@ export {
   useLiveMealTemplates,
   useSyncStatus,
 } from './hooks';
-export { instantOnLogicalDate, localHourFromInstant, logicalDateFromInstant } from './logical-date';
+export {
+  instantOnLogicalDate,
+  localHourFromInstant,
+  logicalDateFromInstant,
+} from './logical-date';
 export { enqueueUpsert, pendingCount } from './queue';
 export {
   getSyncStatusSnapshot,
+  applySyncQueueItem,
   startSync,
   syncUserOnce,
   syncNow,

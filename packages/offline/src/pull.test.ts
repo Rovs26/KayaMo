@@ -9,11 +9,7 @@ import {
   type SyncableTable,
 } from './db';
 import { createLocalGoal, listLocalGoals, tombstoneLocalGoal } from './journey';
-import {
-  createLocalTask,
-  listLocalTasks,
-  setLocalTaskScheduledFor,
-} from './planning';
+import { createLocalTask, listLocalTasks, setLocalTaskScheduledFor } from './planning';
 import {
   applyPullPage,
   pullRemoteChanges,
@@ -86,7 +82,10 @@ function food(id: string, createdBy: string | null): Food {
   };
 }
 
-function compareRequestCursor(request: PullPageRequest, row: Record<string, unknown>): boolean {
+function compareRequestCursor(
+  request: PullPageRequest,
+  row: Record<string, unknown>,
+): boolean {
   if (!request.cursor) return true;
   const serverUpdatedAt = row.server_updated_at as string;
   const stableKey = row[request.spec.stableKeyColumn] as string;
@@ -100,8 +99,9 @@ function compareRequestCursor(request: PullPageRequest, row: Record<string, unkn
 function memoryFetcher(rows: unknown[]): PullPageFetcher {
   return async (request) =>
     rows
-      .filter((value): value is Record<string, unknown> =>
-        typeof value === 'object' && value !== null,
+      .filter(
+        (value): value is Record<string, unknown> =>
+          typeof value === 'object' && value !== null,
       )
       .filter((row) => row[request.spec.ownerColumn] === request.userId)
       .filter((row) => compareRequestCursor(request, row))
@@ -119,7 +119,10 @@ function memoryFetcher(rows: unknown[]): PullPageFetcher {
 }
 
 describe('bidirectional pull invariants', () => {
-  beforeEach(resetOfflineDb);
+  beforeEach(async () => {
+    await resetOfflineDb();
+    await setOfflineUserScope(userA);
+  });
   afterEach(resetOfflineDb);
 
   it('hydrates an empty device from the first server page', async () => {
@@ -191,7 +194,9 @@ describe('bidirectional pull invariants', () => {
     await applyPullPage({
       userId: userA,
       table: 'tasks',
-      rows: [task('task-a', { title: 'new', updatedAt: cursor2, serverUpdatedAt: cursor2 })],
+      rows: [
+        task('task-a', { title: 'new', updatedAt: cursor2, serverUpdatedAt: cursor2 }),
+      ],
     });
     expect((await getOfflineDb().tasks.get('task-a'))?.title).toBe('new');
   });
@@ -214,7 +219,13 @@ describe('bidirectional pull invariants', () => {
     await applyPullPage({
       userId: userA,
       table: 'tasks',
-      rows: [task('task-a', { updatedAt: cursor2, serverUpdatedAt: cursor2, deletedAt: cursor2 })],
+      rows: [
+        task('task-a', {
+          updatedAt: cursor2,
+          serverUpdatedAt: cursor2,
+          deletedAt: cursor2,
+        }),
+      ],
     });
     expect((await getOfflineDb().tasks.get('task-a'))?.deleted_at).toBe(cursor2);
     expect(await listLocalTasks(userA)).toEqual([]);
@@ -233,7 +244,13 @@ describe('bidirectional pull invariants', () => {
     await applyPullPage({
       userId: userA,
       table: 'tasks',
-      rows: [task('task-a', { title: 'stale live', updatedAt: cursor3, serverUpdatedAt: cursor3 })],
+      rows: [
+        task('task-a', {
+          title: 'stale live',
+          updatedAt: cursor3,
+          serverUpdatedAt: cursor3,
+        }),
+      ],
     });
     expect((await getOfflineDb().tasks.get('task-a'))?.deleted_at).toBe(cursor1);
   });
@@ -275,7 +292,11 @@ describe('bidirectional pull invariants', () => {
     await expect(
       applyPullPage(
         { userId: userA, table: 'tasks', rows: [task('task-a')] },
-        { beforeCheckpoint: () => { throw new Error('crash'); } },
+        {
+          beforeCheckpoint: () => {
+            throw new Error('crash');
+          },
+        },
       ),
     ).rejects.toThrow('crash');
     expect(await getOfflineDb().tasks.get('task-a')).toBeUndefined();
@@ -294,48 +315,53 @@ describe('bidirectional pull invariants', () => {
   });
 
   it('does not advance its cursor when the network fails before a pull', async () => {
-    await expect(
-      pullRemoteChanges({
-        client,
-        userId: userA,
-        tables: ['tasks'],
-        fetchPage: async () => { throw new TypeError('Failed to fetch'); },
-      }),
-    ).rejects.toThrow('Failed to fetch');
+    const result = await pullRemoteChanges({
+      client,
+      userId: userA,
+      tables: ['tasks'],
+      fetchPage: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    expect(result.failedTables).toEqual(['tasks']);
     expect(await getOfflineDb().sync_checkpoints.count()).toBe(0);
+    expect(await getOfflineDb().sync_pull_failures.count()).toBe(1);
   });
 
   it('resumes from the last committed page after a mid-stream network failure', async () => {
     const rows = [task('a'), task('b'), task('c')];
     let requests = 0;
-    await expect(
-      pullRemoteChanges({
-        client,
-        userId: userA,
-        tables: ['tasks'],
-        pageSize: 1,
-        fetchPage: async (request) => {
-          requests += 1;
-          if (requests === 2) throw new TypeError('Failed to fetch');
-          return memoryFetcher(rows)(request);
-        },
-      }),
-    ).rejects.toThrow('Failed to fetch');
+    let now = 1_000;
+    const interrupted = await pullRemoteChanges({
+      client,
+      userId: userA,
+      tables: ['tasks'],
+      pageSize: 1,
+      now: () => now,
+      fetchPage: async (request) => {
+        requests += 1;
+        if (requests === 2) throw new TypeError('Failed to fetch');
+        return memoryFetcher(rows)(request);
+      },
+    });
+    expect(interrupted.failedTables).toEqual(['tasks']);
     expect((await getOfflineDb().tasks.toArray()).map((row) => row.id)).toEqual(['a']);
+    now = interrupted.nextRetryAt!;
     await pullRemoteChanges({
       client,
       userId: userA,
       tables: ['tasks'],
       pageSize: 1,
+      now: () => now,
       fetchPage: memoryFetcher(rows),
     });
     expect(await getOfflineDb().tasks.count()).toBe(3);
   });
 
   it('rolls back row application when checkpoint storage fails', async () => {
-    const put = vi.spyOn(getOfflineDb().sync_checkpoints, 'put').mockRejectedValueOnce(
-      new Error('cursor write failed'),
-    );
+    const put = vi
+      .spyOn(getOfflineDb().sync_checkpoints, 'put')
+      .mockRejectedValueOnce(new Error('cursor write failed'));
     await expect(
       applyPullPage({ userId: userA, table: 'tasks', rows: [task('task-a')] }),
     ).rejects.toThrow('cursor write failed');
@@ -366,7 +392,7 @@ describe('bidirectional pull invariants', () => {
     expect(await getOfflineDb().sync_checkpoints.count()).toBe(0);
   });
 
-  it('migrates legacy caches without copying another user\'s private food', async () => {
+  it("migrates legacy caches without copying another user's private food", async () => {
     const legacy = new KayaMoDB('kayamo');
     await legacy.open();
     await legacy.foods.bulkPut([
@@ -375,6 +401,7 @@ describe('bidirectional pull invariants', () => {
       food('food-b', 'user-b'),
     ]);
     legacy.close();
+    await setOfflineUserScope(null);
     await setOfflineUserScope(userA);
     expect(await getOfflineDb().foods.get('canonical')).toBeTruthy();
     expect(await getOfflineDb().foods.get('food-a')).toBeTruthy();
@@ -392,15 +419,15 @@ describe('bidirectional pull invariants', () => {
       updated_at: cursor1,
     });
     expect(LOCAL_ONLY_TABLES).toContain('local_journal_entries');
-    expect(
-      BIDIRECTIONAL_SYNC_REGISTRY.map((spec) => spec.table),
-    ).not.toContain('local_journal_entries');
+    expect(BIDIRECTIONAL_SYNC_REGISTRY.map((spec) => spec.table)).not.toContain(
+      'local_journal_entries',
+    );
     expect(JSON.stringify(await getOfflineDb().sync_queue.toArray())).not.toContain(
       sentinel,
     );
-    expect(
-      JSON.stringify(await getOfflineDb().sync_checkpoints.toArray()),
-    ).not.toContain(sentinel);
+    expect(JSON.stringify(await getOfflineDb().sync_checkpoints.toArray())).not.toContain(
+      sentinel,
+    );
   });
 
   it('remains usable from local data when no sync cycle can start', async () => {
@@ -416,7 +443,9 @@ describe('bidirectional pull invariants', () => {
       syncUserOnce({
         client,
         userId: userA,
-        pushItem: async () => { throw { status: 401 }; },
+        pushItem: async () => {
+          throw { status: 401 };
+        },
         fetchPage: memoryFetcher([]),
         tables: ['tasks'],
       }),
@@ -443,7 +472,8 @@ describe('cross-device bidirectional scenario', () => {
       const table = server.get(item.table) ?? new Map<string, Record<string, unknown>>();
       const existing = table.get(item.entityId);
       const incoming = { ...item.payload };
-      if (existing?.deleted_at && !incoming.deleted_at) incoming.deleted_at = existing.deleted_at;
+      if (existing?.deleted_at && !incoming.deleted_at)
+        incoming.deleted_at = existing.deleted_at;
       table.set(item.entityId, { ...incoming, server_updated_at: nextCursor() });
       server.set(item.table, table);
     };
@@ -468,23 +498,31 @@ describe('cross-device bidirectional scenario', () => {
     expect((await listLocalTasks(userA)).map((row) => row.id)).toContain(todo.id);
 
     await setOfflineUserScope(userA, { namespace: 'device-a' });
-    await setLocalTaskScheduledFor({ id: todo.id, userId: userA, scheduledFor: '2026-08-30' });
+    await setLocalTaskScheduledFor({
+      id: todo.id,
+      userId: userA,
+      scheduledFor: '2026-08-30',
+    });
     await tombstoneLocalGoal({ id: goal.id, userId: userA });
     await cycle('device-a');
 
     await setOfflineUserScope(userA, { namespace: 'device-b' });
     await cycle('device-b');
-    expect((await listLocalTasks(userA)).find((row) => row.id === todo.id)?.scheduled_for).toBe(
-      '2026-08-30',
-    );
+    expect(
+      (await listLocalTasks(userA)).find((row) => row.id === todo.id)?.scheduled_for,
+    ).toBe('2026-08-30');
     expect((await listLocalGoals(userA)).map((row) => row.id)).not.toContain(goal.id);
 
-    await setLocalTaskScheduledFor({ id: todo.id, userId: userA, scheduledFor: '2026-08-31' });
+    await setLocalTaskScheduledFor({
+      id: todo.id,
+      userId: userA,
+      scheduledFor: '2026-08-31',
+    });
     await cycle('device-b');
     await setOfflineUserScope(userA, { namespace: 'device-a' });
     await cycle('device-a');
-    expect((await listLocalTasks(userA)).find((row) => row.id === todo.id)?.scheduled_for).toBe(
-      '2026-08-31',
-    );
+    expect(
+      (await listLocalTasks(userA)).find((row) => row.id === todo.id)?.scheduled_for,
+    ).toBe('2026-08-31');
   });
 });

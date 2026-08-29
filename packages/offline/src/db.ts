@@ -178,6 +178,7 @@ export type SyncableTable =
 
 export type SyncQueueItem = {
   id: string;
+  revision: string;
   userId: string;
   table: SyncableTable;
   entityId: string;
@@ -186,6 +187,37 @@ export type SyncQueueItem = {
   nextAttemptAt: number;
   lastError: string | null;
 };
+
+export type LegacyMigrationMarker = {
+  id: string;
+  source_database: string;
+  user_id: string;
+  completed_at: number;
+};
+
+export type SyncPullFailure = {
+  id: string;
+  user_id: string;
+  table: SyncableTable;
+  attempt: number;
+  nextRetryAt: number;
+  lastError: string;
+  updatedAt: number;
+};
+
+export type OfflineScope = {
+  userId: string | null;
+  databaseName: string;
+  db: KayaMoDB;
+  epoch: number;
+};
+
+export class StaleOfflineScopeError extends Error {
+  constructor() {
+    super('Offline account scope changed during synchronization');
+    this.name = 'StaleOfflineScopeError';
+  }
+}
 
 export type SyncCheckpoint = {
   id: string;
@@ -266,6 +298,8 @@ export class KayaMoDB extends Dexie {
   food_cache_access!: Table<LocalFoodCacheAccess, string>;
   sync_queue!: Table<SyncQueueItem, string>;
   sync_checkpoints!: Table<SyncCheckpoint, string>;
+  sync_pull_failures!: Table<SyncPullFailure, string>;
+  migration_markers!: Table<LegacyMigrationMarker, string>;
 
   constructor(name = 'kayamo:signed-out') {
     super(name);
@@ -367,12 +401,32 @@ export class KayaMoDB extends Dexie {
             }
           });
       });
+    this.version(15)
+      .stores({
+        sync_queue: 'id, userId, nextAttemptAt, table, entityId',
+        sync_checkpoints: 'id, user_id, table, [user_id+table], updatedAt',
+        sync_pull_failures: 'id, user_id, table, nextRetryAt, [user_id+table]',
+        migration_markers: 'id, source_database, user_id, completed_at',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<SyncQueueItem, string>('sync_queue')
+          .toCollection()
+          .modify((item) => {
+            if (!item.revision) item.revision = createMutationRevision();
+          });
+      });
   }
 }
 
 let instance: KayaMoDB | undefined;
 let activeDatabaseName = 'kayamo:signed-out';
+let activeUserId: string | null = null;
+let activeEpoch = 0;
+let activeScope: OfflineScope | undefined;
 let scopeTransition: Promise<void> = Promise.resolve();
+let activeInitialization: Promise<void> = Promise.resolve();
+let revisionSequence = 0;
 
 const USER_SCOPED_TABLES = [
   'food_entries',
@@ -428,12 +482,26 @@ function accountDatabaseName(userId: string, namespace = 'default'): string {
   return `kayamo:${encodeURIComponent(namespace)}:user:${encodeURIComponent(userId)}`;
 }
 
+export function createMutationRevision(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  revisionSequence += 1;
+  return `${Date.now().toString(36)}-${revisionSequence.toString(36)}`;
+}
+
 export function getOfflineDb(): KayaMoDB {
   if (typeof indexedDB === 'undefined') {
     throw new Error('IndexedDB is not available');
   }
   if (!instance) {
     instance = new KayaMoDB(activeDatabaseName);
+    activeScope = {
+      userId: activeUserId,
+      databaseName: activeDatabaseName,
+      db: instance,
+      epoch: activeEpoch,
+    };
   }
   return instance;
 }
@@ -441,35 +509,123 @@ export function getOfflineDb(): KayaMoDB {
 export async function setOfflineUserScope(
   userId: string | null,
   options: { namespace?: string } = {},
-): Promise<void> {
-  const transition = scopeTransition.then(() =>
-    setOfflineUserScopeInternal(userId, options),
-  );
-  scopeTransition = transition.catch(() => undefined);
-  return transition;
-}
-
-async function setOfflineUserScopeInternal(
-  userId: string | null,
-  options: { namespace?: string },
-): Promise<void> {
+): Promise<OfflineScope> {
   const nextName = userId
     ? accountDatabaseName(userId, options.namespace)
     : 'kayamo:signed-out';
-  if (nextName === activeDatabaseName && instance) return;
+  if (nextName === activeDatabaseName && activeUserId === userId && instance) {
+    const scope = getOfflineScope();
+    await activeInitialization;
+    if (!userId) await evacuateSignedOutRows(scope.db);
+    assertOfflineScope(scope);
+    return scope;
+  }
+
   const previousName = activeDatabaseName;
   instance?.close();
-  instance = undefined;
-  const destinationExisted = await Dexie.exists(nextName);
+  activeEpoch += 1;
   activeDatabaseName = nextName;
-  const db = getOfflineDb();
+  activeUserId = userId;
+  const db = new KayaMoDB(nextName);
+  instance = db;
+  const scope: OfflineScope = {
+    userId,
+    databaseName: nextName,
+    db,
+    epoch: activeEpoch,
+  };
+  activeScope = scope;
+
+  const transition = scopeTransition.then(() =>
+    initializeOfflineScope(scope, previousName),
+  );
+  activeInitialization = transition;
+  scopeTransition = transition.then(
+    () => undefined,
+    () => undefined,
+  );
+  await transition;
+  assertOfflineScope(scope);
+  return scope;
+}
+
+async function initializeOfflineScope(
+  scope: OfflineScope,
+  previousName: string,
+): Promise<void> {
+  const { db, userId } = scope;
   await db.open();
+  if (!userId) {
+    await evacuateSignedOutRows(db);
+    return;
+  }
   if (userId && previousName === 'kayamo:signed-out') {
     await copyAccountRows('kayamo:signed-out', db, userId, true);
   }
-  if (userId && !destinationExisted && (await Dexie.exists('kayamo'))) {
-    await copyAccountRows('kayamo', db, userId, false);
-    await copySharedCacheRows('kayamo', db, userId);
+  if (userId && (await Dexie.exists('kayamo'))) {
+    await migrateLegacyAccount('kayamo', db, userId);
+  }
+}
+
+function rowOwner(row: Record<string, unknown>): string | null {
+  const direct = row.user_id ?? row.created_by ?? row.userId;
+  if (typeof direct === 'string' && direct.length > 0) return direct;
+  const payload = row.payload;
+  if (typeof payload !== 'object' || payload === null) return null;
+  const nested =
+    (payload as Record<string, unknown>).user_id ??
+    (payload as Record<string, unknown>).created_by;
+  return typeof nested === 'string' && nested.length > 0 ? nested : null;
+}
+
+async function evacuateSignedOutRows(signedOut: KayaMoDB): Promise<void> {
+  if (signedOut.name !== 'kayamo:signed-out') return;
+  const owners = new Set<string>();
+  for (const tableName of USER_SCOPED_TABLES) {
+    const rows = await signedOut
+      .table<Record<string, unknown>, string>(tableName)
+      .toArray();
+    for (const row of rows) {
+      const owner = rowOwner(row);
+      if (owner) owners.add(owner);
+    }
+  }
+  for (const food of await signedOut.foods.toArray()) {
+    if (food.created_by) owners.add(food.created_by);
+  }
+
+  for (const owner of owners) {
+    const destination = new KayaMoDB(accountDatabaseName(owner));
+    await destination.open();
+    try {
+      await copyAccountRows('kayamo:signed-out', destination, owner, true);
+    } finally {
+      destination.close();
+    }
+  }
+}
+
+export function getOfflineScope(): OfflineScope {
+  const db = getOfflineDb();
+  if (!activeScope || activeScope.db !== db) {
+    activeScope = {
+      userId: activeUserId,
+      databaseName: activeDatabaseName,
+      db,
+      epoch: activeEpoch,
+    };
+  }
+  return activeScope;
+}
+
+export function assertOfflineScope(scope: OfflineScope): void {
+  if (
+    scope.epoch !== activeEpoch ||
+    scope.db !== instance ||
+    scope.databaseName !== activeDatabaseName ||
+    scope.userId !== activeUserId
+  ) {
+    throw new StaleOfflineScopeError();
   }
 }
 
@@ -478,16 +634,7 @@ export function getOfflineDatabaseName(): string {
 }
 
 function belongsToUser(row: Record<string, unknown>, userId: string): boolean {
-  if (row.user_id === userId || row.created_by === userId || row.userId === userId) {
-    return true;
-  }
-  const payload = row.payload;
-  return (
-    typeof payload === 'object' &&
-    payload !== null &&
-    ((payload as Record<string, unknown>).user_id === userId ||
-      (payload as Record<string, unknown>).created_by === userId)
-  );
+  return rowOwner(row) === userId;
 }
 
 async function copyAccountRows(
@@ -495,6 +642,7 @@ async function copyAccountRows(
   destination: KayaMoDB,
   userId: string,
   removeFromSource: boolean,
+  afterTable?: (table: string) => void | Promise<void>,
 ): Promise<void> {
   if (!(await Dexie.exists(sourceName)) || sourceName === destination.name) return;
   const source = new KayaMoDB(sourceName);
@@ -507,6 +655,7 @@ async function copyAccountRows(
       );
       if (rows.length === 0) continue;
       await destination.table<Record<string, unknown>, string>(tableName).bulkPut(rows);
+      await afterTable?.(tableName);
       if (removeFromSource) {
         const keyPath = sourceTable.schema.primKey.keyPath;
         if (typeof keyPath === 'string') {
@@ -531,6 +680,7 @@ async function copyAccountRows(
       await destination.foods.bulkPut(userFoods);
       if (servings.length > 0) await destination.servings.bulkPut(servings);
       if (accessRows.length > 0) await destination.food_cache_access.bulkPut(accessRows);
+      await afterTable?.('foods');
       if (removeFromSource) {
         await source.foods.bulkDelete([...foodIds]);
         await source.servings.bulkDelete(servings.map((row) => row.id));
@@ -540,6 +690,31 @@ async function copyAccountRows(
   } finally {
     source.close();
   }
+}
+
+function legacyMigrationMarkerId(sourceName: string, userId: string): string {
+  return `${sourceName}:${userId}`;
+}
+
+export async function migrateLegacyAccount(
+  sourceName: string,
+  destination: KayaMoDB,
+  userId: string,
+  options: { afterTable?: (table: string) => void | Promise<void> } = {},
+): Promise<boolean> {
+  const markerId = legacyMigrationMarkerId(sourceName, userId);
+  if (await destination.migration_markers.get(markerId)) return false;
+  if (!(await Dexie.exists(sourceName)) || sourceName === destination.name) return false;
+
+  await copyAccountRows(sourceName, destination, userId, false, options.afterTable);
+  await copySharedCacheRows(sourceName, destination, userId);
+  await destination.migration_markers.put({
+    id: markerId,
+    source_database: sourceName,
+    user_id: userId,
+    completed_at: Date.now(),
+  });
+  return true;
 }
 
 async function copySharedCacheRows(
@@ -566,7 +741,9 @@ async function copySharedCacheRows(
     if (accessRows.length > 0) await destination.food_cache_access.bulkPut(accessRows);
 
     for (const tableName of SHARED_CACHE_TABLES) {
-      const rows = await source.table<Record<string, unknown>, string>(tableName).toArray();
+      const rows = await source
+        .table<Record<string, unknown>, string>(tableName)
+        .toArray();
       if (rows.length > 0) {
         await destination.table<Record<string, unknown>, string>(tableName).bulkPut(rows);
       }
@@ -580,13 +757,18 @@ export async function resetOfflineDb(): Promise<void> {
   await scopeTransition;
   instance?.close();
   instance = undefined;
+  activeScope = undefined;
+  activeEpoch += 1;
   if (typeof indexedDB !== 'undefined') {
     const names = await Dexie.getDatabaseNames();
     await Promise.all(
-      names.filter((name) => name === 'kayamo' || name.startsWith('kayamo:')).map((name) => Dexie.delete(name)),
+      names
+        .filter((name) => name === 'kayamo' || name.startsWith('kayamo:'))
+        .map((name) => Dexie.delete(name)),
     );
   }
   activeDatabaseName = 'kayamo:signed-out';
+  activeUserId = null;
 }
 
 export function queueItemId(

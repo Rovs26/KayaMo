@@ -10,6 +10,8 @@ function label(status: ReturnType<typeof useSyncStatus>): string {
       return `Pending ${status.count}`;
     case 'paused':
       return 'Sync paused';
+    case 'degraded':
+      return `Sync retrying ${status.failedTables}`;
     case 'synced':
       return 'Synced';
   }
@@ -18,11 +20,7 @@ function label(status: ReturnType<typeof useSyncStatus>): string {
 export function SyncStatusBar({ className }: { className?: string }) {
   const status = useSyncStatus();
   return (
-    <span
-      data-testid="sync-status"
-      data-sync-kind={status.kind}
-      className={className}
-    >
+    <span data-testid="sync-status" data-sync-kind={status.kind} className={className}>
       {label(status)}
     </span>
   );

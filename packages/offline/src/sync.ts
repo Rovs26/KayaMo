@@ -60,16 +60,28 @@ import {
 } from '@kayamo/db';
 import { backoffMs } from './backoff';
 import {
-  getOfflineDb,
+  assertOfflineScope,
+  getOfflineScope,
   setOfflineUserScope,
+  StaleOfflineScopeError,
+  type OfflineScope,
   type SyncQueueItem,
   type SyncableTable,
 } from './db';
 import { pullRemoteChanges, type PullPageFetcher, type PullStats } from './pull';
-import { dueQueueItems, markQueueFailure, pendingCount, removeQueueItem } from './queue';
+import {
+  dueQueueItems,
+  markQueueFailure,
+  pendingCount,
+  removeQueueItemIfUnchanged,
+} from './queue';
 import { notifySyncStatus, subscribeSyncStatus } from './status';
 
-export type SyncPushHandler = (client: DbClient, item: SyncQueueItem) => Promise<void>;
+export type SyncPushHandler = (
+  client: DbClient,
+  item: SyncQueueItem,
+  scope?: OfflineScope,
+) => Promise<void>;
 
 export type SyncDeps = {
   getClient: () => DbClient;
@@ -93,6 +105,7 @@ export type SyncStatus =
   | { kind: 'offline' }
   | { kind: 'pending'; count: number }
   | { kind: 'synced' }
+  | { kind: 'degraded'; failedTables: number }
   | { kind: 'paused' };
 
 const state = {
@@ -101,6 +114,7 @@ const state = {
   syncing: false,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
   pending: 0,
+  failedTables: 0,
   timer: 0 as ReturnType<typeof setTimeout> | 0,
   deps: null as SyncDeps | null,
 };
@@ -128,6 +142,10 @@ function refreshSnapshot(): void {
   }
   if (state.pending > 0) {
     snapshot = { kind: 'pending', count: state.pending };
+    return;
+  }
+  if (state.failedTables > 0) {
+    snapshot = { kind: 'degraded', failedTables: state.failedTables };
     return;
   }
   snapshot = { kind: 'synced' };
@@ -170,50 +188,56 @@ export async function drainQueue(): Promise<void> {
       return;
     }
     userId = data.session.user.id;
-    await setOfflineUserScope(userId);
-    const due = await dueQueueItems(Date.now(), userId);
+    const scope = await setOfflineUserScope(userId);
+    const due = await dueQueueItems(Date.now(), userId, scope.db);
     for (const item of due) {
       if (state.paused) break;
       if (item.userId !== userId) continue;
       try {
-        await applyItem(client, item);
-        await removeQueueItem(item.id);
+        await applySyncQueueItem(client, item, scope);
+        assertOfflineScope(scope);
+        await removeQueueItemIfUnchanged(item, scope.db);
       } catch (error) {
         if (isUnauthorizedError(error)) {
           state.paused = true;
           break;
         }
+        if (error instanceof StaleOfflineScopeError) break;
         const delay = backoffMs(item.attempt);
-        await markQueueFailure(item, Date.now() + delay, errorCode(error));
+        await markQueueFailure(item, Date.now() + delay, errorCode(error), scope.db);
         scheduleDrain(delay);
       }
     }
   } finally {
     state.draining = false;
-    await refreshPending(userId);
+    await refreshPending();
   }
 }
 
 async function pushOutbound(
   client: DbClient,
-  userId: string,
-  pushItem: SyncPushHandler = applyItem,
+  scope: OfflineScope,
+  pushItem: SyncPushHandler = applySyncQueueItem,
 ): Promise<number> {
+  const userId = scope.userId;
+  if (!userId) return 0;
   let pushed = 0;
-  const due = await dueQueueItems(Date.now(), userId);
+  const due = await dueQueueItems(Date.now(), userId, scope.db);
   for (const item of due) {
     if (state.paused || item.userId !== userId) break;
     try {
-      await pushItem(client, item);
-      await removeQueueItem(item.id);
+      await pushItem(client, item, scope);
+      assertOfflineScope(scope);
+      await removeQueueItemIfUnchanged(item, scope.db);
       pushed += 1;
     } catch (error) {
       if (isUnauthorizedError(error)) {
         state.paused = true;
         throw error;
       }
+      if (error instanceof StaleOfflineScopeError) throw error;
       const delay = backoffMs(item.attempt);
-      await markQueueFailure(item, Date.now() + delay, errorCode(error));
+      await markQueueFailure(item, Date.now() + delay, errorCode(error), scope.db);
       scheduleSync(delay);
     }
   }
@@ -228,12 +252,13 @@ export async function syncUserOnce(params: {
   pushItem?: SyncPushHandler;
   tables?: readonly SyncableTable[];
 }): Promise<{ pushed: number; pull: PullStats }> {
-  await setOfflineUserScope(params.userId, { namespace: params.namespace });
+  const scope = await setOfflineUserScope(params.userId, { namespace: params.namespace });
   let pushed = 0;
-  for (const item of await dueQueueItems(Date.now(), params.userId)) {
+  for (const item of await dueQueueItems(Date.now(), params.userId, scope.db)) {
     if (item.userId !== params.userId) continue;
-    await (params.pushItem ?? applyItem)(params.client, item);
-    await removeQueueItem(item.id);
+    await (params.pushItem ?? applySyncQueueItem)(params.client, item, scope);
+    assertOfflineScope(scope);
+    await removeQueueItemIfUnchanged(item, scope.db);
     pushed += 1;
   }
   const pull = await pullRemoteChanges({
@@ -241,19 +266,15 @@ export async function syncUserOnce(params: {
     userId: params.userId,
     fetchPage: params.fetchPage,
     tables: params.tables,
+    scope,
   });
   await refreshPending(params.userId);
   return { pushed, pull };
 }
 
 export async function syncNow(): Promise<void> {
-  if (
-    state.paused ||
-    state.syncing ||
-    state.draining ||
-    !state.online ||
-    !state.deps
-  ) return;
+  if (state.paused || state.syncing || state.draining || !state.online || !state.deps)
+    return;
   const startedAt = Date.now();
   const deps = state.deps;
   const client = deps.getClient();
@@ -266,6 +287,9 @@ export async function syncNow(): Promise<void> {
     skippedStale: 0,
     conflicts: 0,
     checkpointsAdvanced: 0,
+    failedTables: [],
+    deferredTables: [],
+    nextRetryAt: null,
   };
   try {
     const { data } = await client.auth.getSession();
@@ -275,15 +299,17 @@ export async function syncNow(): Promise<void> {
       return;
     }
     const userId = data.session.user.id;
-    await setOfflineUserScope(userId);
-    pushed = await pushOutbound(client, userId);
+    const scope = await setOfflineUserScope(userId);
+    pushed = await pushOutbound(client, scope);
     if (!state.paused) {
       pull = await pullRemoteChanges({
         client,
         userId,
         fetchPage: deps.fetchPage,
+        scope,
       });
     }
+    state.failedTables = pull.failedTables.length + pull.deferredTables.length;
     deps.onTelemetry?.({
       kind: 'cycle-completed',
       durationMs: Date.now() - startedAt,
@@ -293,8 +319,11 @@ export async function syncNow(): Promise<void> {
       skippedStale: pull.skippedStale,
       conflicts: pull.conflicts,
       checkpointsAdvanced: pull.checkpointsAdvanced,
-      failureCategory: null,
+      failureCategory: state.failedTables > 0 ? 'pull-table' : null,
     });
+    if (pull.nextRetryAt !== null) {
+      scheduleSync(Math.max(0, pull.nextRetryAt - Date.now()));
+    }
   } catch (error) {
     const category = errorCode(error);
     if (isUnauthorizedError(error)) state.paused = true;
@@ -353,26 +382,38 @@ function errorCode(error: unknown): string {
   return 'error';
 }
 
-async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
-  switch (item.table) {
+export async function applySyncQueueItem(
+  client: DbClient,
+  item: SyncQueueItem,
+  suppliedScope?: OfflineScope,
+): Promise<void> {
+  const scope = suppliedScope ?? getOfflineScope();
+  const { db } = scope;
+  const table = item.table;
+  assertOfflineScope(scope);
+  if (scope.userId !== item.userId) throw new StaleOfflineScopeError();
+  switch (table) {
     case 'food_entries': {
       const result: UpsertResult = await upsertFoodEntry(
         client,
         item.payload as FoodEntryWrite,
       );
+      assertOfflineScope(scope);
       if (result.row) {
-        await getOfflineDb().food_entries.put(result.row);
+        await db.food_entries.put(result.row);
       }
       return;
     }
     case 'daily_plans': {
       const result = await upsertDailyPlan(client, item.payload as DailyPlanWrite);
-      if (result.row) await getOfflineDb().daily_plans.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.daily_plans.put(result.row);
       return;
     }
     case 'focus_sessions': {
       const result = await upsertFocusSession(client, item.payload as FocusSessionWrite);
-      if (result.row) await getOfflineDb().focus_sessions.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.focus_sessions.put(result.row);
       return;
     }
     case 'daily_loop_preferences': {
@@ -380,32 +421,38 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as DailyLoopPreferenceWrite,
       );
-      if (result.row) await getOfflineDb().daily_loop_preferences.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.daily_loop_preferences.put(result.row);
       return;
     }
     case 'weight_logs': {
       const result = await upsertWeightLog(client, item.payload as WeightLogWrite);
-      if (result.row) await getOfflineDb().weight_logs.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.weight_logs.put(result.row);
       return;
     }
     case 'workouts': {
       const result = await upsertWorkout(client, item.payload as WorkoutWrite);
-      if (result.row) await getOfflineDb().workouts.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.workouts.put(result.row);
       return;
     }
     case 'workout_sets': {
       const result = await upsertWorkoutSet(client, item.payload as WorkoutSetWrite);
-      if (result.row) await getOfflineDb().workout_sets.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.workout_sets.put(result.row);
       return;
     }
     case 'exercises': {
       const result = await upsertUserExercise(client, item.payload as UserExerciseWrite);
-      if (result.row) await getOfflineDb().exercises.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.exercises.put(result.row);
       return;
     }
     case 'workout_plans': {
       const result = await upsertWorkoutPlan(client, item.payload as WorkoutPlanWrite);
-      if (result.row) await getOfflineDb().workout_plans.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.workout_plans.put(result.row);
       return;
     }
     case 'workout_plan_exercises': {
@@ -413,12 +460,14 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as WorkoutPlanExerciseWrite,
       );
-      if (result.row) await getOfflineDb().workout_plan_exercises.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.workout_plan_exercises.put(result.row);
       return;
     }
     case 'goals': {
       const result = await upsertGoal(client, item.payload as GoalWrite);
-      if (result.row) await getOfflineDb().goals.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.goals.put(result.row);
       return;
     }
     case 'goal_milestones': {
@@ -426,12 +475,14 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as GoalMilestoneWrite,
       );
-      if (result.row) await getOfflineDb().goal_milestones.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.goal_milestones.put(result.row);
       return;
     }
     case 'habits': {
       const result = await upsertHabit(client, item.payload as HabitWrite);
-      if (result.row) await getOfflineDb().habits.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.habits.put(result.row);
       return;
     }
     case 'habit_completions': {
@@ -439,7 +490,8 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as HabitCompletionWrite,
       );
-      if (result.row) await getOfflineDb().habit_completions.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.habit_completions.put(result.row);
       return;
     }
     case 'companion_events': {
@@ -447,10 +499,11 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as CompanionEventWrite,
       );
+      assertOfflineScope(scope);
       if (result.row.id !== item.entityId) {
-        await getOfflineDb().companion_events.delete(item.entityId);
+        await db.companion_events.delete(item.entityId);
       }
-      await getOfflineDb().companion_events.put(result.row);
+      await db.companion_events.put(result.row);
       return;
     }
     case 'meal_templates': {
@@ -458,19 +511,22 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as MealTemplateWrite,
       );
+      assertOfflineScope(scope);
       if (result.row) {
-        await getOfflineDb().meal_templates.put(result.row);
+        await db.meal_templates.put(result.row);
       }
       return;
     }
     case 'tasks': {
       const result = await upsertTask(client, item.payload as TaskWrite);
-      if (result.row) await getOfflineDb().tasks.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.tasks.put(result.row);
       return;
     }
     case 'routines': {
       const result = await upsertRoutine(client, item.payload as RoutineWrite);
-      if (result.row) await getOfflineDb().routines.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.routines.put(result.row);
       return;
     }
     case 'routine_completions': {
@@ -478,12 +534,14 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as RoutineCompletionWrite,
       );
-      if (result.row) await getOfflineDb().routine_completions.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.routine_completions.put(result.row);
       return;
     }
     case 'agent_memory': {
       const result = await upsertAgentMemory(client, item.payload as AgentMemoryWrite);
-      if (result.row) await getOfflineDb().agent_memory.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.agent_memory.put(result.row);
       return;
     }
     case 'coco_conversations': {
@@ -491,35 +549,47 @@ async function applyItem(client: DbClient, item: SyncQueueItem): Promise<void> {
         client,
         item.payload as CocoConversationWrite,
       );
-      if (result.row) await getOfflineDb().coco_conversations.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.coco_conversations.put(result.row);
       return;
     }
     case 'coco_messages': {
       const result = await upsertCocoMessage(client, item.payload as CocoMessageWrite);
-      if (result.row) await getOfflineDb().coco_messages.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.coco_messages.put(result.row);
       return;
     }
     case 'future_selves': {
       const result = await upsertFutureSelf(client, item.payload as FutureSelfWrite);
-      if (result.row) await getOfflineDb().future_selves.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.future_selves.put(result.row);
       return;
     }
     case 'compasses': {
       const result = await upsertCompass(client, item.payload as CompassWrite);
-      if (result.row) await getOfflineDb().compasses.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.compasses.put(result.row);
       return;
     }
     case 'inbox_items': {
       const result = await upsertInboxItem(client, item.payload as InboxItemWrite);
-      if (result.row) await getOfflineDb().inbox_items.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.inbox_items.put(result.row);
       return;
     }
     case 'personal_rules': {
       const result = await upsertPersonalRule(client, item.payload as PersonalRuleWrite);
-      if (result.row) await getOfflineDb().personal_rules.put(result.row);
+      assertOfflineScope(scope);
+      if (result.row) await db.personal_rules.put(result.row);
       return;
     }
+    default:
+      return unsupportedSyncTable(table);
   }
+}
+
+function unsupportedSyncTable(table: never): never {
+  throw new Error(`Unsupported sync push table: ${String(table)}`);
 }
 
 function syncSoon(): void {
@@ -573,12 +643,12 @@ export function startSync(deps: SyncDeps): () => void {
       event === 'SIGNED_IN' ||
       event === 'TOKEN_REFRESHED'
     ) {
-      if (session) void setOfflineUserScope(session.user.id);
+      if (session) void setOfflineUserScope(session.user.id).catch(() => undefined);
       if (session) resumeSync();
     }
     if (event === 'SIGNED_OUT') {
       state.paused = true;
-      void setOfflineUserScope(null);
+      void setOfflineUserScope(null).catch(() => undefined);
       refreshSnapshot();
       notifySyncStatus();
     }

@@ -1,4 +1,11 @@
-import { getOfflineDb, queueItemId, type SyncQueueItem, type SyncableTable } from './db';
+import {
+  createMutationRevision,
+  getOfflineDb,
+  queueItemId,
+  type KayaMoDB,
+  type SyncQueueItem,
+  type SyncableTable,
+} from './db';
 import { notifySyncStatus } from './status';
 
 export async function enqueueUpsert(
@@ -13,6 +20,7 @@ export async function enqueueUpsert(
   }
   const item: SyncQueueItem = {
     id: queueItemId(table, entityId, owner),
+    revision: createMutationRevision(),
     userId: owner,
     table,
     entityId,
@@ -25,34 +33,58 @@ export async function enqueueUpsert(
   notifySyncStatus();
 }
 
-export async function pendingCount(userId?: string): Promise<number> {
+export async function pendingCount(
+  userId?: string,
+  db: KayaMoDB = getOfflineDb(),
+): Promise<number> {
   return userId
-    ? getOfflineDb().sync_queue.where('userId').equals(userId).count()
-    : getOfflineDb().sync_queue.count();
+    ? db.sync_queue.where('userId').equals(userId).count()
+    : db.sync_queue.count();
 }
 
 export async function dueQueueItems(
   now = Date.now(),
   userId?: string,
+  db: KayaMoDB = getOfflineDb(),
 ): Promise<SyncQueueItem[]> {
-  const due = await getOfflineDb().sync_queue
+  const due = await db.sync_queue
     .where('nextAttemptAt')
     .belowOrEqual(now)
     .sortBy('nextAttemptAt');
   return userId ? due.filter((item) => item.userId === userId) : due;
 }
 
-export async function markQueueFailure(item: SyncQueueItem, nextAttemptAt: number, lastError: string): Promise<void> {
-  await getOfflineDb().sync_queue.put({
-    ...item,
-    attempt: item.attempt + 1,
-    nextAttemptAt,
-    lastError,
+export async function markQueueFailure(
+  item: SyncQueueItem,
+  nextAttemptAt: number,
+  lastError: string,
+  db: KayaMoDB = getOfflineDb(),
+): Promise<boolean> {
+  const updated = await db.transaction('rw', db.sync_queue, async () => {
+    const current = await db.sync_queue.get(item.id);
+    if (!current || current.revision !== item.revision) return false;
+    await db.sync_queue.put({
+      ...current,
+      attempt: current.attempt + 1,
+      nextAttemptAt,
+      lastError,
+    });
+    return true;
   });
   notifySyncStatus();
+  return updated;
 }
 
-export async function removeQueueItem(id: string): Promise<void> {
-  await getOfflineDb().sync_queue.delete(id);
+export async function removeQueueItemIfUnchanged(
+  item: SyncQueueItem,
+  db: KayaMoDB = getOfflineDb(),
+): Promise<boolean> {
+  const removed = await db.transaction('rw', db.sync_queue, async () => {
+    const current = await db.sync_queue.get(item.id);
+    if (!current || current.revision !== item.revision) return false;
+    await db.sync_queue.delete(item.id);
+    return true;
+  });
   notifySyncStatus();
+  return removed;
 }
