@@ -38,35 +38,37 @@ import type {
   WorkoutSet,
 } from '@kayamo/db';
 
-export type LocalFoodEntry = FoodEntry;
-export type LocalWeightLog = WeightLog;
-export type LocalWorkout = Workout;
-export type LocalWorkoutSet = WorkoutSet;
-export type LocalExercise = Exercise;
-export type LocalWorkoutPlan = WorkoutPlan;
-export type LocalWorkoutPlanExercise = WorkoutPlanExercise;
+type LocalSyncRow<T> = Omit<T, 'server_seq'> & { server_seq?: number | null };
+
+export type LocalFoodEntry = LocalSyncRow<FoodEntry>;
+export type LocalWeightLog = LocalSyncRow<WeightLog>;
+export type LocalWorkout = LocalSyncRow<Workout>;
+export type LocalWorkoutSet = LocalSyncRow<WorkoutSet>;
+export type LocalExercise = LocalSyncRow<Exercise>;
+export type LocalWorkoutPlan = LocalSyncRow<WorkoutPlan>;
+export type LocalWorkoutPlanExercise = LocalSyncRow<WorkoutPlanExercise>;
 export type LocalFood = Food;
 export type LocalServing = Serving;
-export type LocalMealTemplate = MealTemplate;
-export type LocalTask = Task;
-export type LocalRoutine = Routine;
-export type LocalRoutineCompletion = RoutineCompletion;
-export type LocalAgentMemory = AgentMemory;
-export type LocalCocoConversation = CocoConversation;
-export type LocalCocoMessage = CocoMessage;
-export type LocalDailyPlan = DailyPlan;
-export type LocalFocusSession = FocusSession;
-export type LocalDailyLoopPreference = DailyLoopPreference;
+export type LocalMealTemplate = LocalSyncRow<MealTemplate>;
+export type LocalTask = LocalSyncRow<Task>;
+export type LocalRoutine = LocalSyncRow<Routine>;
+export type LocalRoutineCompletion = LocalSyncRow<RoutineCompletion>;
+export type LocalAgentMemory = LocalSyncRow<AgentMemory>;
+export type LocalCocoConversation = LocalSyncRow<CocoConversation>;
+export type LocalCocoMessage = LocalSyncRow<CocoMessage>;
+export type LocalDailyPlan = LocalSyncRow<DailyPlan>;
+export type LocalFocusSession = LocalSyncRow<FocusSession>;
+export type LocalDailyLoopPreference = LocalSyncRow<DailyLoopPreference>;
 export type LocalScripturePassage = ScripturePassage;
-export type LocalGoal = UserGoal;
-export type LocalGoalMilestone = GoalMilestone;
-export type LocalFutureSelf = FutureSelf;
-export type LocalCompass = Compass;
-export type LocalInboxItem = InboxItem;
-export type LocalPersonalRule = PersonalRule;
-export type LocalHabit = Habit;
-export type LocalHabitCompletion = HabitCompletion;
-export type LocalCompanionEvent = CompanionEvent;
+export type LocalGoal = LocalSyncRow<UserGoal>;
+export type LocalGoalMilestone = LocalSyncRow<GoalMilestone>;
+export type LocalFutureSelf = LocalSyncRow<FutureSelf>;
+export type LocalCompass = LocalSyncRow<Compass>;
+export type LocalInboxItem = LocalSyncRow<InboxItem>;
+export type LocalPersonalRule = LocalSyncRow<PersonalRule>;
+export type LocalHabit = LocalSyncRow<Habit>;
+export type LocalHabitCompletion = LocalSyncRow<HabitCompletion>;
+export type LocalCompanionEvent = LocalSyncRow<CompanionEvent>;
 export type LocalCompanionState = CompanionState;
 export type LocalAchievementDefinition = AchievementDefinitionRow;
 export type LocalUserAchievement = UserAchievement;
@@ -223,10 +225,22 @@ export type SyncCheckpoint = {
   id: string;
   user_id: string;
   table: SyncableTable;
+  cursor_version: 2;
+  server_seq: number;
+  updatedAt: number;
+};
+
+export type LegacySyncCheckpoint = {
+  id: string;
+  user_id: string;
+  table: SyncableTable;
+  cursor_version?: 1;
   server_updated_at: string;
   stable_key: string;
   updatedAt: number;
 };
+
+export type StoredSyncCheckpoint = SyncCheckpoint | LegacySyncCheckpoint;
 
 export type LocalRestTimer = {
   workout_id: string;
@@ -297,7 +311,7 @@ export class KayaMoDB extends Dexie {
   guidance_snapshots!: Table<LocalGuidanceSnapshot, string>;
   food_cache_access!: Table<LocalFoodCacheAccess, string>;
   sync_queue!: Table<SyncQueueItem, string>;
-  sync_checkpoints!: Table<SyncCheckpoint, string>;
+  sync_checkpoints!: Table<StoredSyncCheckpoint, string>;
   sync_pull_failures!: Table<SyncPullFailure, string>;
   migration_markers!: Table<LegacyMigrationMarker, string>;
 
@@ -416,6 +430,9 @@ export class KayaMoDB extends Dexie {
             if (!item.revision) item.revision = createMutationRevision();
           });
       });
+    this.version(16).stores({
+      sync_checkpoints: 'id, user_id, table, [user_id+table], updatedAt',
+    });
   }
 }
 

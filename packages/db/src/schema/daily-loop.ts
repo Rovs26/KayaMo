@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
+import { createdAt, deletedAt, serverSeq, serverUpdatedAt, updatedAt } from './columns';
 import {
   DAILY_ACTION_KINDS,
   DAY_CAPACITIES,
@@ -46,11 +46,13 @@ export const dailyPlans = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('daily_plans_user_date_idx').on(table.user_id, table.logical_date),
     index('daily_plans_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('daily_plans_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     uniqueIndex('daily_plans_live_day_uidx')
       .on(table.user_id, table.logical_date)
       .where(sql`${table.deleted_at} is null`),
@@ -104,11 +106,16 @@ export const focusSessions = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('focus_sessions_user_date_idx').on(table.user_id, table.logical_date),
     index('focus_sessions_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('focus_sessions_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check(
       'focus_sessions_target_kind_check',
       sql`${table.target_kind} in (${sql.raw(sqlIn(DAILY_ACTION_KINDS))})`,
@@ -148,27 +155,42 @@ export const dailyLoopPreferences = pgTable(
     morning_reminder_at: time('morning_reminder_at', {
       withTimezone: false,
       precision: 0,
-    }).notNull().default('08:00:00'),
+    })
+      .notNull()
+      .default('08:00:00'),
     evening_reminder_at: time('evening_reminder_at', {
       withTimezone: false,
       precision: 0,
-    }).notNull().default('20:00:00'),
+    })
+      .notNull()
+      .default('20:00:00'),
     quiet_starts_at: time('quiet_starts_at', {
       withTimezone: false,
       precision: 0,
-    }).notNull().default('22:00:00'),
+    })
+      .notNull()
+      .default('22:00:00'),
     quiet_ends_at: time('quiet_ends_at', {
       withTimezone: false,
       precision: 0,
-    }).notNull().default('07:00:00'),
+    })
+      .notNull()
+      .default('07:00:00'),
     faith_enabled: boolean('faith_enabled').notNull().default(false),
     last_weekly_reset_on: date('last_weekly_reset_on', { mode: 'string' }),
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
-  (table) => [index('daily_loop_preferences_server_updated_at_idx').on(table.server_updated_at)],
+  (table) => [
+    index('daily_loop_preferences_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('daily_loop_preferences_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
+  ],
 );
 
 export const scripturePassages = pgTable(
@@ -181,7 +203,10 @@ export const scripturePassages = pgTable(
     translation_key: text('translation_key').notNull(),
     license: text('license').notNull(),
     source_url: text('source_url').notNull(),
-    tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
+    tags: text('tags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     reviewed_at: timestamp('reviewed_at', {
       withTimezone: true,
       mode: 'string',
@@ -193,7 +218,10 @@ export const scripturePassages = pgTable(
   },
   (table) => [
     index('scripture_passages_tags_idx').using('gin', table.tags),
-    check('scripture_passages_text_len', sql`char_length(${table.text}) between 1 and 1200`),
+    check(
+      'scripture_passages_text_len',
+      sql`char_length(${table.text}) between 1 and 1200`,
+    ),
     check(
       'scripture_passages_translation_check',
       sql`${table.translation_key} = 'engwebp'`,

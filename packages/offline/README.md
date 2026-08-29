@@ -2,13 +2,13 @@
 
 Dexie schema, optimistic writes, and the sync queue. Every user-facing mutation goes through here.
 
-**Built through:** bidirectional sync v1
+**Built through:** bidirectional sync v1 with commit-ordered server cursors
 
 **Owns:**
 
 - `db.ts` — account-isolated IndexedDB mirrors, durable pull checkpoints, local-only journals, and the sync queue
 - `sync-registry.ts` — the explicit server↔device allowlist
-- `pull.ts` — paginated `(server_updated_at, stable key)` pulls and atomic merge/checkpoint transactions
+- `pull.ts` — paginated `server_seq` pulls and atomic merge/checkpoint transactions
 - `sync.ts` — push-then-pull orchestration, exponential backoff; 401 pauses (does not drop)
 - `writes.ts` — Dexie first, then enqueue (idempotency key = `userId:table:entityId`)
 - `hooks.ts` — React bindings for sync status and live entries
@@ -41,12 +41,19 @@ ownership review.
 
 ## Conflict and deletion contract
 
-`updated_at` is the bounded client last-write-wins field. `server_updated_at` is
-used only as the pull cursor. A queued local edit survives an older/equal remote
+`updated_at` is the bounded client last-write-wins field. `server_updated_at` is a
+diagnostic freshness timestamp only. `server_seq` is the authoritative pull cursor:
+every sync-visible mutation obtains a per-user sequence while holding that user's
+transactional counter row, so a later sequence cannot commit before the transaction
+that allocated an earlier one. A queued local edit survives an older/equal remote
 version; a strictly newer remote version replaces it. Server tombstones are
 irreversible and delete wins over live stale state in either direction. Equal
-client timestamps do not overwrite local state. Tied server cursor timestamps are
-ordered by the table's stable primary key, so pagination cannot skip a row.
+client timestamps do not overwrite local state.
+
+Sequence checkpoints have cursor version 2. A legacy timestamp/key checkpoint is
+discarded only for its own table and that table replays from sequence zero. The
+idempotent merge preserves newer queued local edits and never wipes the account DB,
+local-only records, or unsent mutations.
 
 Every page is validated for ownership and structural cursor fields, then its rows
 and table/user checkpoint are written in one Dexie transaction. A crash or cursor

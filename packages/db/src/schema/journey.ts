@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
+import { createdAt, deletedAt, serverSeq, serverUpdatedAt, updatedAt } from './columns';
 import {
   ACHIEVEMENT_METRICS,
   COMPANION_EVENT_TYPES,
@@ -40,11 +40,13 @@ export const goals = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('goals_user_status_idx').on(table.user_id, table.status),
     index('goals_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('goals_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check('goals_title_len', sql`char_length(trim(${table.title})) between 1 and 180`),
     check('goals_kind_check', sql`${table.kind} in (${sql.raw(sqlIn(GOAL_KINDS))})`),
     check(
@@ -81,11 +83,16 @@ export const goalMilestones = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('goal_milestones_goal_order_idx').on(table.goal_id, table.sort_order),
     index('goal_milestones_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('goal_milestones_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     uniqueIndex('goal_milestones_live_order_uidx')
       .on(table.goal_id, table.sort_order)
       .where(sql`${table.deleted_at} is null`),
@@ -112,11 +119,13 @@ export const habits = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('habits_user_active_idx').on(table.user_id, table.active),
     index('habits_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('habits_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check('habits_title_len', sql`char_length(trim(${table.title})) between 1 and 120`),
     check(
       'habits_frequency_check',
@@ -149,11 +158,16 @@ export const habitCompletions = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('habit_completions_user_date_idx').on(table.user_id, table.logical_date),
     index('habit_completions_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('habit_completions_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     uniqueIndex('habit_completions_live_day_uidx')
       .on(table.habit_id, table.logical_date)
       .where(sql`${table.deleted_at} is null`),
@@ -235,11 +249,16 @@ export const companionEvents = pgTable(
     points: integer('points').notNull().default(0),
     created_at: createdAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
   },
   (table) => [
     uniqueIndex('companion_events_user_key_uidx').on(table.user_id, table.event_key),
     index('companion_events_user_date_idx').on(table.user_id, table.logical_date),
     index('companion_events_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('companion_events_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check(
       'companion_events_type_check',
       sql`${table.event_type} in (${sql.raw(sqlIn(COMPANION_EVENT_TYPES))})`,

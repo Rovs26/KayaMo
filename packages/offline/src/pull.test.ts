@@ -25,6 +25,9 @@ const userA = 'user-a';
 const cursor1 = '2026-08-20T01:00:00.000Z';
 const cursor2 = '2026-08-20T02:00:00.000Z';
 const cursor3 = '2026-08-20T03:00:00.000Z';
+const seq1 = 1;
+const seq2 = 2;
+const seq3 = 3;
 
 function task(
   id: string,
@@ -33,6 +36,7 @@ function task(
     title?: string;
     updatedAt?: string;
     serverUpdatedAt?: string;
+    serverSeq?: number;
     deletedAt?: string | null;
   } = {},
 ): Task {
@@ -49,6 +53,7 @@ function task(
     created_at: cursor1,
     updated_at: options.updatedAt ?? cursor1,
     server_updated_at: options.serverUpdatedAt ?? cursor1,
+    server_seq: options.serverSeq ?? seq1,
     deleted_at: options.deletedAt ?? null,
   };
 }
@@ -87,13 +92,7 @@ function compareRequestCursor(
   row: Record<string, unknown>,
 ): boolean {
   if (!request.cursor) return true;
-  const serverUpdatedAt = row.server_updated_at as string;
-  const stableKey = row[request.spec.stableKeyColumn] as string;
-  return (
-    serverUpdatedAt > request.cursor.serverUpdatedAt ||
-    (serverUpdatedAt === request.cursor.serverUpdatedAt &&
-      stableKey > request.cursor.stableKey)
-  );
+  return (row.server_seq as number) > request.cursor.serverSeq;
 }
 
 function memoryFetcher(rows: unknown[]): PullPageFetcher {
@@ -105,16 +104,7 @@ function memoryFetcher(rows: unknown[]): PullPageFetcher {
       )
       .filter((row) => row[request.spec.ownerColumn] === request.userId)
       .filter((row) => compareRequestCursor(request, row))
-      .sort((left, right) => {
-        const time = String(left.server_updated_at).localeCompare(
-          String(right.server_updated_at),
-        );
-        return time === 0
-          ? String(left[request.spec.stableKeyColumn]).localeCompare(
-              String(right[request.spec.stableKeyColumn]),
-            )
-          : time;
-      })
+      .sort((left, right) => Number(left.server_seq) - Number(right.server_seq))
       .slice(0, request.limit);
 }
 
@@ -138,7 +128,7 @@ describe('bidirectional pull invariants', () => {
   it('uses its durable cursor for an incremental pull', async () => {
     const rows = [
       task('task-a'),
-      task('task-b', { serverUpdatedAt: cursor2, updatedAt: cursor2 }),
+      task('task-b', { serverUpdatedAt: cursor2, updatedAt: cursor2, serverSeq: seq2 }),
     ];
     await pullRemoteChanges({
       client,
@@ -156,11 +146,56 @@ describe('bidirectional pull invariants', () => {
         return memoryFetcher(rows)(request);
       },
     });
-    expect(requests[0]?.cursor).toEqual({
-      serverUpdatedAt: cursor1,
-      stableKey: 'task-a',
-    });
+    expect(requests[0]?.cursor).toEqual({ serverSeq: seq1 });
     expect(await getOfflineDb().tasks.get('task-b')).toBeTruthy();
+  });
+
+  it('replaces only a legacy timestamp checkpoint and rehydrates from sequence zero', async () => {
+    const local = task('task-a', {
+      title: 'newer unsynced local edit',
+      updatedAt: cursor2,
+      serverSeq: seq2,
+    });
+    await getOfflineDb().tasks.put(local);
+    await enqueueUpsert('tasks', local.id, local);
+    await getOfflineDb().local_journal_entries.put({
+      id: 'local-only',
+      user_id: userA,
+      kind: 'reflection',
+      content: 'never synchronized',
+      created_at: cursor1,
+      updated_at: cursor1,
+    });
+    await getOfflineDb().sync_checkpoints.put({
+      id: `${userA}:tasks`,
+      user_id: userA,
+      table: 'tasks',
+      server_updated_at: cursor3,
+      stable_key: 'legacy-last-key',
+      updatedAt: 1,
+    });
+
+    const requests: PullPageRequest[] = [];
+    await pullRemoteChanges({
+      client,
+      userId: userA,
+      tables: ['tasks'],
+      fetchPage: async (request) => {
+        requests.push(request);
+        return memoryFetcher([task('task-a', { title: 'older server row' })])(request);
+      },
+    });
+
+    expect(requests[0]?.cursor).toBeNull();
+    expect((await getOfflineDb().tasks.get('task-a'))?.title).toBe(
+      'newer unsynced local edit',
+    );
+    expect(await getOfflineDb().sync_queue.count()).toBe(1);
+    expect(await getOfflineDb().local_journal_entries.get('local-only')).toBeTruthy();
+    expect(await getOfflineDb().sync_checkpoints.get(`${userA}:tasks`)).toMatchObject({
+      cursor_version: 2,
+      server_seq: 1,
+    });
   });
 
   it('replays a duplicate page idempotently', async () => {
@@ -168,6 +203,18 @@ describe('bidirectional pull invariants', () => {
     await applyPullPage({ userId: userA, table: 'tasks', rows: [row] });
     await applyPullPage({ userId: userA, table: 'tasks', rows: [row] });
     expect(await getOfflineDb().tasks.count()).toBe(1);
+  });
+
+  it('rejects duplicate sequence values within one server page', async () => {
+    await expect(
+      applyPullPage({
+        userId: userA,
+        table: 'tasks',
+        rows: [task('task-a'), task('task-b')],
+      }),
+    ).rejects.toThrow('Duplicate or non-advancing tasks server sequence');
+    expect(await getOfflineDb().tasks.count()).toBe(0);
+    expect(await getOfflineDb().sync_checkpoints.count()).toBe(0);
   });
 
   it('deduplicates immutable companion events by stable event key', async () => {
@@ -182,6 +229,7 @@ describe('bidirectional pull invariants', () => {
       points: 5,
       created_at: cursor1,
       server_updated_at: cursor1,
+      server_seq: seq1,
     };
     await getOfflineDb().companion_events.put({ ...event, id: 'local-event' });
     await applyPullPage({ userId: userA, table: 'companion_events', rows: [event] });
@@ -195,7 +243,12 @@ describe('bidirectional pull invariants', () => {
       userId: userA,
       table: 'tasks',
       rows: [
-        task('task-a', { title: 'new', updatedAt: cursor2, serverUpdatedAt: cursor2 }),
+        task('task-a', {
+          title: 'new',
+          updatedAt: cursor2,
+          serverUpdatedAt: cursor2,
+          serverSeq: seq2,
+        }),
       ],
     });
     expect((await getOfflineDb().tasks.get('task-a'))?.title).toBe('new');
@@ -223,6 +276,7 @@ describe('bidirectional pull invariants', () => {
         task('task-a', {
           updatedAt: cursor2,
           serverUpdatedAt: cursor2,
+          serverSeq: seq2,
           deletedAt: cursor2,
         }),
       ],
@@ -249,14 +303,15 @@ describe('bidirectional pull invariants', () => {
           title: 'stale live',
           updatedAt: cursor3,
           serverUpdatedAt: cursor3,
+          serverSeq: seq3,
         }),
       ],
     });
     expect((await getOfflineDb().tasks.get('task-a'))?.deleted_at).toBe(cursor1);
   });
 
-  it('does not skip multiple rows sharing one server timestamp', async () => {
-    const rows = ['a', 'b', 'c'].map((id) => task(id));
+  it('does not skip rows whose diagnostic timestamps are identical', async () => {
+    const rows = ['a', 'b', 'c'].map((id, index) => task(id, { serverSeq: index + 1 }));
     await pullRemoteChanges({
       client,
       userId: userA,
@@ -276,6 +331,7 @@ describe('bidirectional pull invariants', () => {
       task(`task-${index}`, {
         updatedAt: new Date(Date.parse(cursor1) + index * 1_000).toISOString(),
         serverUpdatedAt: new Date(Date.parse(cursor1) + index * 1_000).toISOString(),
+        serverSeq: index + 1,
       }),
     );
     await pullRemoteChanges({
@@ -310,7 +366,7 @@ describe('bidirectional pull invariants', () => {
         table: 'tasks',
         rows: [{ id: 'bad', user_id: userA, server_updated_at: cursor1 }],
       }),
-    ).rejects.toThrow('Invalid conflict timestamp');
+    ).rejects.toThrow('Invalid server cursor');
     expect(await getOfflineDb().sync_checkpoints.count()).toBe(0);
   });
 
@@ -329,7 +385,11 @@ describe('bidirectional pull invariants', () => {
   });
 
   it('resumes from the last committed page after a mid-stream network failure', async () => {
-    const rows = [task('a'), task('b'), task('c')];
+    const rows = [
+      task('a', { serverSeq: 1 }),
+      task('b', { serverSeq: 2 }),
+      task('c', { serverSeq: 3 }),
+    ];
     let requests = 0;
     let now = 1_000;
     const interrupted = await pullRemoteChanges({
@@ -462,8 +522,7 @@ describe('cross-device bidirectional scenario', () => {
   it('converges Device A to server to Device B and back, including deletion', async () => {
     const server = new Map<SyncableTable, Map<string, Record<string, unknown>>>();
     let serverTick = 0;
-    const nextCursor = () =>
-      new Date(Date.parse(cursor1) + serverTick++ * 1_000).toISOString();
+    const nextCursor = () => ++serverTick;
     const fetchPage: PullPageFetcher = async (request) => {
       const rows = [...(server.get(request.spec.table)?.values() ?? [])];
       return memoryFetcher(rows)(request);
@@ -474,7 +533,11 @@ describe('cross-device bidirectional scenario', () => {
       const incoming = { ...item.payload };
       if (existing?.deleted_at && !incoming.deleted_at)
         incoming.deleted_at = existing.deleted_at;
-      table.set(item.entityId, { ...incoming, server_updated_at: nextCursor() });
+      table.set(item.entityId, {
+        ...incoming,
+        server_updated_at: cursor1,
+        server_seq: nextCursor(),
+      });
       server.set(item.table, table);
     };
     const cycle = (namespace: string) =>

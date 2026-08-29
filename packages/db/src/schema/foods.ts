@@ -16,6 +16,7 @@ import {
   createdAt,
   deletedAt,
   emptyTextArray,
+  serverSeq,
   serverUpdatedAt,
   updatedAt,
 } from './columns';
@@ -210,12 +211,14 @@ export const foodEntries = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('food_entries_user_logged_at_idx').on(table.user_id, table.logged_at.desc()),
     index('food_entries_user_logical_date_idx').on(table.user_id, table.logical_date),
     index('food_entries_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('food_entries_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check(
       'food_entries_source_check',
       sql`${table.source} in (${sql.raw(sqlIn(FOOD_SOURCES))})`,
@@ -301,11 +304,16 @@ export const mealTemplates = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('meal_templates_user_id_idx').on(table.user_id),
     index('meal_templates_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('meal_templates_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check('meal_templates_name_len', sql`char_length(${table.name}) between 1 and 80`),
     check('meal_templates_items_array', sql`jsonb_typeof(${table.items}) = 'array'`),
     check('meal_templates_items_min', sql`jsonb_array_length(${table.items}) >= 1`),

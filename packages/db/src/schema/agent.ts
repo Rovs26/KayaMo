@@ -10,9 +10,10 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
+import { createdAt, deletedAt, serverSeq, serverUpdatedAt, updatedAt } from './columns';
 import { vector1536 } from './types';
 
 export const agentRuns = pgTable(
@@ -62,11 +63,13 @@ export const agentMemory = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('agent_memory_user_kind_idx').on(table.user_id, table.kind),
     index('agent_memory_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('agent_memory_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check(
       'agent_memory_explicit_check',
       sql`${table.explicit} = true or ${table.deleted_at} is not null`,

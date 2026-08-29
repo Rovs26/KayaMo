@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, uuid } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
+import { check, index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { createdAt, deletedAt, serverSeq, serverUpdatedAt, updatedAt } from './columns';
 
 export const cocoConversations = pgTable(
   'coco_conversations',
@@ -11,6 +11,7 @@ export const cocoConversations = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -19,6 +20,10 @@ export const cocoConversations = pgTable(
       table.updated_at.desc(),
     ),
     index('coco_conversations_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('coco_conversations_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check(
       'coco_conversations_title_len',
       sql`${table.title} is null or char_length(trim(${table.title})) between 1 and 120`,
@@ -40,6 +45,7 @@ export const cocoMessages = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -48,6 +54,10 @@ export const cocoMessages = pgTable(
       table.created_at,
     ),
     index('coco_messages_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('coco_messages_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check('coco_messages_role_check', sql`${table.role} in ('user', 'assistant')`),
     check(
       'coco_messages_content_len',

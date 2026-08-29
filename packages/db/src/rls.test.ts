@@ -575,6 +575,88 @@ describeWithDatabase('RLS and tombstones', () => {
     expect(data.server_updated_at).not.toBe(forgedCursor);
   });
 
+  it('assigns unforgeable sequence cursors and returns owner tombstones incrementally', async () => {
+    const firstId = randomUUID();
+    const secondId = randomUUID();
+    const firstAt = '2026-08-16T05:00:00.000Z';
+    const secondAt = '2026-08-16T05:01:00.000Z';
+    const forgedSeq = 999_999;
+
+    const { data: first, error: firstError } = await userA.client
+      .from('tasks')
+      .insert({
+        id: firstId,
+        user_id: userA.id,
+        title: 'First sequence fixture',
+        updated_at: firstAt,
+        server_seq: forgedSeq,
+      } as never)
+      .select('id, server_seq')
+      .single();
+    if (firstError) throw firstError;
+    expect(first.server_seq).not.toBe(forgedSeq);
+    expect(Number.isSafeInteger(first.server_seq)).toBe(true);
+
+    const { data: second, error: secondError } = await userA.client
+      .from('tasks')
+      .insert({
+        id: secondId,
+        user_id: userA.id,
+        title: 'Second sequence fixture',
+        updated_at: secondAt,
+        server_seq: 1,
+      } as never)
+      .select('id, server_seq')
+      .single();
+    if (secondError) throw secondError;
+    expect(second.server_seq).toBeGreaterThan(first.server_seq);
+
+    const { data: otherRows, error: otherError } = await userB.client
+      .from('tasks')
+      .select('id, server_seq')
+      .eq('user_id', userA.id)
+      .gt('server_seq', 0)
+      .order('server_seq', { ascending: true });
+    if (otherError) throw otherError;
+    expect(otherRows).toEqual([]);
+
+    const deletedAt = '2026-08-16T05:02:00.000Z';
+    const { data: tombstone, error: tombstoneError } = await userA.client
+      .from('tasks')
+      .update({
+        deleted_at: deletedAt,
+        updated_at: deletedAt,
+        server_seq: 1,
+      } as never)
+      .eq('id', secondId)
+      .select('id, server_seq, deleted_at')
+      .single();
+    if (tombstoneError) throw tombstoneError;
+    expect(tombstone.server_seq).toBeGreaterThan(second.server_seq);
+    expect(new Date(tombstone.deleted_at!).toISOString()).toBe(deletedAt);
+
+    const { data: incremental, error: incrementalError } = await userA.client
+      .from('tasks')
+      .select('id, server_seq, deleted_at')
+      .eq('user_id', userA.id)
+      .gt('server_seq', second.server_seq)
+      .order('server_seq', { ascending: true });
+    if (incrementalError) throw incrementalError;
+    expect(incremental).toContainEqual(tombstone);
+
+    const { data: staleLive, error: staleLiveError } = await userA.client
+      .from('tasks')
+      .update({
+        deleted_at: null,
+        title: 'Stale resurrection attempt',
+        updated_at: '2026-08-16T05:03:00.000Z',
+      })
+      .eq('id', secondId)
+      .select('id');
+    if (staleLiveError) throw staleLiveError;
+    expect(staleLive).toEqual([]);
+  });
+
   it('clamps a raw client updated_at more than five minutes in the future', async () => {
     const entryId = randomUUID();
     const loggedAt = '2026-08-16T04:45:00.000Z';

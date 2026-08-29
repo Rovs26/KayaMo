@@ -15,6 +15,8 @@ import {
   createdAt,
   deletedAt,
   emptyTextArray,
+  nullableServerSeq,
+  serverSeq,
   serverUpdatedAt,
   updatedAt,
 } from './columns';
@@ -55,6 +57,7 @@ export const exercises = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: nullableServerSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -79,6 +82,7 @@ export const exercises = pgTable(
       sql`${table.name} extensions.gin_trgm_ops`,
     ),
     index('exercises_name_tl_gin_idx').using('gin', table.name_tl),
+    uniqueIndex('exercises_owner_server_seq_uidx').on(table.created_by, table.server_seq),
   ],
 );
 
@@ -93,11 +97,16 @@ export const workoutPlans = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('workout_plans_user_active_idx').on(table.user_id, table.active),
     index('workout_plans_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('workout_plans_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     check(
       'workout_plans_title_len',
       sql`char_length(trim(${table.title})) between 1 and 120`,
@@ -127,6 +136,7 @@ export const workoutPlanExercises = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -136,6 +146,10 @@ export const workoutPlanExercises = pgTable(
       table.exercise_order,
     ),
     index('workout_plan_exercises_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('workout_plan_exercises_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     uniqueIndex('workout_plan_exercises_live_order_uidx')
       .on(table.plan_id, table.day_index, table.exercise_order)
       .where(sql`${table.deleted_at} is null`),
@@ -169,12 +183,14 @@ export const workouts = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('workouts_user_started_at_idx').on(table.user_id, table.started_at.desc()),
     index('workouts_user_logical_date_idx').on(table.user_id, table.logical_date),
     index('workouts_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('workouts_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check(
       'workouts_status_check',
       sql`${table.status} in (${sql.raw(sqlIn(WORKOUT_STATUSES))})`,
@@ -215,6 +231,7 @@ export const workoutSets = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -225,6 +242,7 @@ export const workoutSets = pgTable(
     ),
     index('workout_sets_user_id_idx').on(table.user_id),
     index('workout_sets_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('workout_sets_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     uniqueIndex('workout_sets_live_index_uidx')
       .on(table.workout_id, table.exercise_id, table.set_index)
       .where(sql`${table.deleted_at} is null`),

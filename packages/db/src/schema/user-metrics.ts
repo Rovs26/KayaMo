@@ -16,6 +16,7 @@ import {
   createdAt,
   deletedAt,
   emptyTextArray,
+  serverSeq,
   serverUpdatedAt,
   updatedAt,
 } from './columns';
@@ -35,6 +36,7 @@ export const weightLogs = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -43,6 +45,7 @@ export const weightLogs = pgTable(
       .where(sql`${table.deleted_at} is null`),
     index('weight_logs_user_logical_date_idx').on(table.user_id, table.logical_date),
     index('weight_logs_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('weight_logs_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check(
       'weight_logs_source_check',
       sql`${table.source} in (${sql.raw(sqlIn(WEIGHT_SOURCES))})`,

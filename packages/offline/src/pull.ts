@@ -10,6 +10,7 @@ import {
   StaleOfflineScopeError,
   type KayaMoDB,
   type OfflineScope,
+  type StoredSyncCheckpoint,
   type SyncCheckpoint,
   type SyncQueueItem,
   type SyncableTable,
@@ -21,8 +22,7 @@ import {
 } from './sync-registry';
 
 export type SyncCursor = {
-  serverUpdatedAt: string;
-  stableKey: string;
+  serverSeq: number;
 };
 
 export type PullPageRequest = {
@@ -48,7 +48,7 @@ export type PullStats = {
 };
 
 type SyncRecord = Record<string, unknown> & {
-  server_updated_at: string;
+  server_seq: number;
 };
 
 type SyncQueryResult = { data: unknown[] | null; error: unknown };
@@ -69,33 +69,8 @@ type ApplyPageOptions = {
   scope?: OfflineScope;
 };
 
-const SERVER_TIMESTAMP =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
-
-function timestampParts(value: string): { milliseconds: number; micros: number } {
-  const match = SERVER_TIMESTAMP.exec(value);
-  if (!match) throw new Error('Invalid canonical server timestamp');
-  const milliseconds = Date.parse(`${match[1]}${match[3]}`);
-  if (!Number.isFinite(milliseconds))
-    throw new Error('Invalid canonical server timestamp');
-  return {
-    milliseconds,
-    micros: Number((match[2] ?? '').padEnd(6, '0')),
-  };
-}
-
-function lexicalCompare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 export function compareSyncCursor(left: SyncCursor, right: SyncCursor): number {
-  const leftTime = timestampParts(left.serverUpdatedAt);
-  const rightTime = timestampParts(right.serverUpdatedAt);
-  const milliseconds = leftTime.milliseconds - rightTime.milliseconds;
-  if (milliseconds !== 0) return milliseconds < 0 ? -1 : 1;
-  const micros = leftTime.micros - rightTime.micros;
-  if (micros !== 0) return micros < 0 ? -1 : 1;
-  return lexicalCompare(left.stableKey, right.stableKey);
+  return left.serverSeq < right.serverSeq ? -1 : left.serverSeq > right.serverSeq ? 1 : 0;
 }
 
 function parseRecord(spec: SyncTableSpec, userId: string, value: unknown): SyncRecord {
@@ -105,22 +80,12 @@ function parseRecord(spec: SyncTableSpec, userId: string, value: unknown): SyncR
   const row = value as Record<string, unknown>;
   const owner = row[spec.ownerColumn];
   const stableKey = row[spec.stableKeyColumn];
-  const serverUpdatedAt = row.server_updated_at;
+  const serverSeq = row.server_seq;
   if (owner !== userId) throw new Error(`Owner mismatch in ${spec.table} sync row`);
   if (typeof stableKey !== 'string' || stableKey.length === 0) {
     throw new Error(`Missing stable key in ${spec.table} sync row`);
   }
-  if (
-    typeof serverUpdatedAt !== 'string' ||
-    (() => {
-      try {
-        timestampParts(serverUpdatedAt);
-        return false;
-      } catch {
-        return true;
-      }
-    })()
-  ) {
+  if (!Number.isSafeInteger(serverSeq) || (serverSeq as number) < 1) {
     throw new Error(`Invalid server cursor in ${spec.table} sync row`);
   }
   if (spec.conflictColumn) {
@@ -140,14 +105,21 @@ function parseRecord(spec: SyncTableSpec, userId: string, value: unknown): SyncR
   ) {
     throw new Error(`Invalid tombstone in ${spec.table} sync row`);
   }
-  return { ...row, server_updated_at: serverUpdatedAt };
+  return { ...row, server_seq: serverSeq as number };
 }
 
-function rowCursor(spec: SyncTableSpec, row: SyncRecord): SyncCursor {
+function rowCursor(row: SyncRecord): SyncCursor {
   return {
-    serverUpdatedAt: row.server_updated_at,
-    stableKey: row[spec.stableKeyColumn] as string,
+    serverSeq: row.server_seq,
   };
+}
+
+function sequenceCursor(checkpoint: StoredSyncCheckpoint | undefined): SyncCursor | null {
+  if (!checkpoint || checkpoint.cursor_version !== 2) return null;
+  if (!Number.isSafeInteger(checkpoint.server_seq) || checkpoint.server_seq < 0) {
+    throw new Error('Invalid local sequence checkpoint');
+  }
+  return { serverSeq: checkpoint.server_seq };
 }
 
 function queuedTimestamp(item: SyncQueueItem): string | null {
@@ -237,9 +209,12 @@ export async function applyPullPage(
   const spec = syncSpecFor(params.table);
   const rows = params.rows
     .map((row) => parseRecord(spec, params.userId, row))
-    .sort((left, right) =>
-      compareSyncCursor(rowCursor(spec, left), rowCursor(spec, right)),
-    );
+    .sort((left, right) => compareSyncCursor(rowCursor(left), rowCursor(right)));
+  for (let index = 1; index < rows.length; index += 1) {
+    if (rows[index - 1]!.server_seq >= rows[index]!.server_seq) {
+      throw new Error(`Duplicate or non-advancing ${spec.table} server sequence`);
+    }
+  }
   const stats: PullStats = {
     pulled: rows.length,
     applied: 0,
@@ -281,25 +256,20 @@ export async function applyPullPage(
       }
       await options.beforeCheckpoint?.();
       assertOfflineScope(scope);
-      const cursor = rowCursor(spec, rows.at(-1)!);
+      const cursor = rowCursor(rows.at(-1)!);
       const currentCheckpoint = await db.sync_checkpoints.get(
         checkpointId(params.userId, params.table),
       );
-      if (
-        currentCheckpoint &&
-        compareSyncCursor(cursor, {
-          serverUpdatedAt: currentCheckpoint.server_updated_at,
-          stableKey: currentCheckpoint.stable_key,
-        }) <= 0
-      ) {
+      const currentCursor = sequenceCursor(currentCheckpoint);
+      if (currentCursor && compareSyncCursor(cursor, currentCursor) <= 0) {
         return;
       }
       const checkpoint: SyncCheckpoint = {
         id: checkpointId(params.userId, params.table),
         user_id: params.userId,
         table: params.table,
-        server_updated_at: cursor.serverUpdatedAt,
-        stable_key: cursor.stableKey,
+        cursor_version: 2,
+        server_seq: cursor.serverSeq,
         updatedAt: Date.now(),
       };
       await db.sync_checkpoints.put(checkpoint);
@@ -309,44 +279,24 @@ export async function applyPullPage(
   return stats;
 }
 
-async function fetchOrderedRows(
-  request: PullPageRequest,
-  filter: { sameTime: boolean; limit: number },
-): Promise<unknown[]> {
+async function fetchOrderedRows(request: PullPageRequest): Promise<unknown[]> {
   const client = request.client as unknown as SyncQueryClient;
   let query = client
     .from(request.spec.table)
     .select('*')
     .eq(request.spec.ownerColumn, request.userId);
   if (request.cursor) {
-    query = filter.sameTime
-      ? query
-          .eq('server_updated_at', request.cursor.serverUpdatedAt)
-          .gt(request.spec.stableKeyColumn, request.cursor.stableKey)
-      : query.gt('server_updated_at', request.cursor.serverUpdatedAt);
+    query = query.gt('server_seq', String(request.cursor.serverSeq));
   }
   const { data, error } = await query
-    .order('server_updated_at', { ascending: true })
-    .order(request.spec.stableKeyColumn, { ascending: true })
-    .limit(filter.limit);
+    .order('server_seq', { ascending: true })
+    .limit(request.limit);
   if (error) throw error;
   return data ?? [];
 }
 
 export const fetchServerSyncPage: PullPageFetcher = async (request) => {
-  if (!request.cursor) {
-    return fetchOrderedRows(request, { sameTime: false, limit: request.limit });
-  }
-  const tied = await fetchOrderedRows(request, {
-    sameTime: true,
-    limit: request.limit,
-  });
-  if (tied.length >= request.limit) return tied;
-  const newer = await fetchOrderedRows(request, {
-    sameTime: false,
-    limit: request.limit - tied.length,
-  });
-  return [...tied, ...newer];
+  return fetchOrderedRows(request);
 };
 
 export async function pullRemoteChanges(params: {
@@ -393,36 +343,32 @@ export async function pullRemoteChanges(params: {
     }
     try {
       let checkpoint = await db.sync_checkpoints.get(failureId);
+      if (checkpoint && checkpoint.cursor_version !== 2) {
+        // Timestamp checkpoints cannot be translated safely. Replace only this
+        // table's checkpoint and replay its server feed from sequence zero.
+        await db.sync_checkpoints.delete(failureId);
+        checkpoint = undefined;
+      }
       for (;;) {
         assertOfflineScope(scope);
         const rows = await fetchPage({
           client: params.client,
           userId: params.userId,
           spec,
-          cursor: checkpoint
-            ? {
-                serverUpdatedAt: checkpoint.server_updated_at,
-                stableKey: checkpoint.stable_key,
-              }
-            : null,
+          cursor: sequenceCursor(checkpoint),
           limit: pageSize,
         });
         assertOfflineScope(scope);
         if (rows.length === 0) break;
         if (rows.length > pageSize)
           throw new Error('Sync page exceeded its requested limit');
-        const priorCursor = checkpoint
-          ? {
-              serverUpdatedAt: checkpoint.server_updated_at,
-              stableKey: checkpoint.stable_key,
-            }
-          : null;
+        const priorCursor = sequenceCursor(checkpoint);
         if (
           priorCursor &&
           rows.some(
             (row) =>
               compareSyncCursor(
-                rowCursor(spec, parseRecord(spec, params.userId, row)),
+                rowCursor(parseRecord(spec, params.userId, row)),
                 priorCursor,
               ) <= 0,
           )

@@ -28,7 +28,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function task(id: string, userId = userA, title = id): Task {
+function task(id: string, userId = userA, title = id, serverSeq = 1): Task {
   return {
     id,
     user_id: userId,
@@ -42,6 +42,7 @@ function task(id: string, userId = userA, title = id): Task {
     created_at: timestamp,
     updated_at: timestamp,
     server_updated_at: timestamp,
+    server_seq: serverSeq,
     deleted_at: null,
   };
 }
@@ -369,32 +370,10 @@ describe('adversarial sync repair reproductions', () => {
     expect(await getOfflineDb().sync_queue.count()).toBe(0);
   });
 
-  it('orders canonical Postgres timestamps by time and then stable key', () => {
-    const cursor = (serverUpdatedAt: string, stableKey = 'a') => ({
-      serverUpdatedAt,
-      stableKey,
-    });
-    expect(
-      compareSyncCursor(cursor(timestamp), cursor('2026-08-29T04:12:33.000001+00:00')),
-    ).toBeLessThan(0);
-    expect(
-      compareSyncCursor(
-        cursor('2026-08-29T04:12:33.1+00:00'),
-        cursor('2026-08-29T04:12:33.01+00:00'),
-      ),
-    ).toBeGreaterThan(0);
-    expect(
-      compareSyncCursor(
-        cursor('2026-08-29T04:12:33.1+00:00'),
-        cursor('2026-08-29T04:12:33.100000+00:00'),
-      ),
-    ).toBe(0);
-    expect(
-      compareSyncCursor(cursor(timestamp, 'a'), cursor(timestamp, 'b')),
-    ).toBeLessThan(0);
-    expect(compareSyncCursor(cursor(timestamp, 'same'), cursor(timestamp, 'same'))).toBe(
-      0,
-    );
+  it('orders authoritative sequence cursors without timestamp interpretation', () => {
+    expect(compareSyncCursor({ serverSeq: 41 }, { serverSeq: 42 })).toBeLessThan(0);
+    expect(compareSyncCursor({ serverSeq: 42 }, { serverSeq: 41 })).toBeGreaterThan(0);
+    expect(compareSyncCursor({ serverSeq: 42 }, { serverSeq: 42 })).toBe(0);
   });
 
   it('records bounded per-table retry attempts with growing backoff', async () => {
@@ -451,7 +430,7 @@ describe('adversarial sync repair reproductions', () => {
       tables: ['tasks'],
       fetchPage: async () => [
         {
-          ...task('newer'),
+          ...task('newer', userA, 'newer', 2),
           updated_at: '2026-08-29T04:12:34+00:00',
           server_updated_at: '2026-08-29T04:12:34+00:00',
         },
@@ -460,9 +439,10 @@ describe('adversarial sync repair reproductions', () => {
     response.resolve([task('older')]);
     await olderPull;
 
-    expect(
-      (await getOfflineDb().sync_checkpoints.get(`${userA}:tasks`))?.server_updated_at,
-    ).toBe('2026-08-29T04:12:34+00:00');
+    expect(await getOfflineDb().sync_checkpoints.get(`${userA}:tasks`)).toMatchObject({
+      cursor_version: 2,
+      server_seq: 2,
+    });
   });
 
   it('fails loudly for a runtime table missing a push implementation', async () => {

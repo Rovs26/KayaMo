@@ -17,7 +17,12 @@ import type {
   recipes,
   servings,
 } from './schema/foods';
-import type { compasses, futureSelves, inboxItems, personalRules } from './schema/identity';
+import type {
+  compasses,
+  futureSelves,
+  inboxItems,
+  personalRules,
+} from './schema/identity';
 import type { musContextPermissions } from './schema/mus-context';
 import type { profiles } from './schema/profiles';
 import type {
@@ -45,7 +50,7 @@ import type { expenditureEstimates, targets, weightLogs } from './schema/user-me
 
 type TableDef<
   T extends { $inferSelect: unknown; $inferInsert: unknown },
-  Omitted extends PropertyKey = 'server_updated_at',
+  Omitted extends PropertyKey = 'server_updated_at' | 'server_seq',
 > = {
   Row: T['$inferSelect'];
   Insert: Omit<T['$inferInsert'], Extract<keyof T['$inferInsert'], Omitted>>;
@@ -67,15 +72,24 @@ export type Database = {
       food_aliases: TableDef<typeof foodAliases>;
       recipes: TableDef<typeof recipes>;
       recipe_ingredients: TableDef<typeof recipeIngredients>;
-      food_entries: TableDef<typeof foodEntries, 'server_updated_at' | 'logical_date'>;
+      food_entries: TableDef<
+        typeof foodEntries,
+        'server_updated_at' | 'server_seq' | 'logical_date'
+      >;
       meal_templates: TableDef<typeof mealTemplates>;
       off_contribute_requests: TableDef<typeof offContributeRequests>;
       exercises: TableDef<typeof exercises>;
       workout_plans: TableDef<typeof workoutPlans>;
       workout_plan_exercises: TableDef<typeof workoutPlanExercises>;
-      workouts: TableDef<typeof workouts, 'server_updated_at' | 'logical_date'>;
+      workouts: TableDef<
+        typeof workouts,
+        'server_updated_at' | 'server_seq' | 'logical_date'
+      >;
       workout_sets: TableDef<typeof workoutSets>;
-      weight_logs: TableDef<typeof weightLogs, 'server_updated_at' | 'logical_date'>;
+      weight_logs: TableDef<
+        typeof weightLogs,
+        'server_updated_at' | 'server_seq' | 'logical_date'
+      >;
       expenditure_estimates: TableDef<typeof expenditureEstimates>;
       targets: TableDef<typeof targets>;
       agent_runs: TableDef<typeof agentRuns>;
@@ -94,7 +108,10 @@ export type Database = {
       goal_milestones: TableDef<typeof goalMilestones>;
       habits: TableDef<typeof habits>;
       habit_completions: TableDef<typeof habitCompletions>;
-      companion_events: TableDef<typeof companionEvents, 'server_updated_at'>;
+      companion_events: TableDef<
+        typeof companionEvents,
+        'server_updated_at' | 'server_seq'
+      >;
       companion_state: TableDef<typeof companionState>;
       achievement_definitions: TableDef<typeof achievementDefinitions>;
       user_achievements: TableDef<typeof userAchievements, 'server_updated_at'>;
@@ -187,8 +204,7 @@ export type DailyLoopPreference =
   Database['public']['Tables']['daily_loop_preferences']['Row'];
 export type DailyLoopPreferenceInsert =
   Database['public']['Tables']['daily_loop_preferences']['Insert'];
-export type ScripturePassage =
-  Database['public']['Tables']['scripture_passages']['Row'];
+export type ScripturePassage = Database['public']['Tables']['scripture_passages']['Row'];
 export type PushSubscriptionRow =
   Database['public']['Tables']['push_subscriptions']['Row'];
 export type Task = Database['public']['Tables']['tasks']['Row'];

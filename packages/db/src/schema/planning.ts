@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, deletedAt, serverUpdatedAt, updatedAt } from './columns';
+import { createdAt, deletedAt, serverSeq, serverUpdatedAt, updatedAt } from './columns';
 import { TASK_ORIGINS, sqlIn } from './constants';
 
 export const tasks = pgTable(
@@ -30,11 +30,13 @@ export const tasks = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('tasks_user_scheduled_for_idx').on(table.user_id, table.scheduled_for),
     index('tasks_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('tasks_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check('tasks_title_len', sql`char_length(trim(${table.title})) between 1 and 160`),
     check('tasks_sort_order_nonneg', sql`${table.sort_order} >= 0`),
     check(
@@ -61,11 +63,13 @@ export const routines = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
     index('routines_user_active_idx').on(table.user_id, table.active),
     index('routines_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('routines_owner_server_seq_uidx').on(table.user_id, table.server_seq),
     check('routines_title_len', sql`char_length(trim(${table.title})) between 1 and 120`),
     check(
       'routines_schedule_days_nonempty',
@@ -95,6 +99,7 @@ export const routineCompletions = pgTable(
     created_at: createdAt,
     updated_at: updatedAt,
     server_updated_at: serverUpdatedAt,
+    server_seq: serverSeq,
     deleted_at: deletedAt,
   },
   (table) => [
@@ -103,6 +108,10 @@ export const routineCompletions = pgTable(
       table.logical_date,
     ),
     index('routine_completions_server_updated_at_idx').on(table.server_updated_at),
+    uniqueIndex('routine_completions_owner_server_seq_uidx').on(
+      table.user_id,
+      table.server_seq,
+    ),
     uniqueIndex('routine_completions_live_day_uidx')
       .on(table.routine_id, table.logical_date)
       .where(sql`${table.deleted_at} is null`),

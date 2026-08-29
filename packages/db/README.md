@@ -12,7 +12,10 @@ Drizzle schema, SQL migrations, RLS, and typed query helpers. The single source 
 - `client.ts` — browser (anon) and cookie (user JWT, RLS) clients
 - `service.ts` — service-role client, never imported from `"use client"` files
 
-**Rules:** `food_entries` stores a nutrient snapshot, never a join. `updated_at` is last-write-wins; `server_updated_at` is the sync cursor only. Hard DELETE is revoked on tombstoned tables.
+**Rules:** `food_entries` stores a nutrient snapshot, never a join. `updated_at` is
+last-write-wins. `server_updated_at` is diagnostic freshness metadata;
+trigger-maintained `server_seq` is the only authoritative sync cursor. Hard DELETE
+is revoked on tombstoned tables.
 
 Bundle 1 adds `tasks`, `routines`, and `routine_completions`. They are user-owned,
 offline-syncable, and tombstone-only. A task with `origin = 'coco_confirmed'`

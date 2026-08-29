@@ -19,9 +19,15 @@ export function incomingWins(
   return new Date(incomingUpdatedAt).getTime() > new Date(existingUpdatedAt).getTime();
 }
 
-export function omitServerCursor<T extends object>(row: T): Omit<T, 'server_updated_at'> {
-  const copy = { ...row } as T & { server_updated_at?: unknown };
+export function omitServerCursor<T extends object>(
+  row: T,
+): Omit<T, 'server_updated_at' | 'server_seq'> {
+  const copy = { ...row } as T & {
+    server_updated_at?: unknown;
+    server_seq?: unknown;
+  };
   delete copy.server_updated_at;
+  delete copy.server_seq;
   return copy;
 }
 
