@@ -42,6 +42,25 @@ RUN_DB_TESTS=1 pnpm --filter @kayamo/db test
 The integration suite creates and removes temporary auth users. Use only an
 isolated local or disposable test project.
 
+GitHub Actions runs the same suite in a dedicated `database-integration` job. The
+job starts a fresh local Supabase stack, resets that disposable database to replay
+every checked-in migration, exports only generated local credentials, and runs:
+
+```bash
+RUN_DB_TESTS=1 pnpm test:db:integration
+```
+
+The command additionally requires `SUPABASE_DB_URL` for the real PostgreSQL
+concurrency and catalog assertions. CI obtains it from `supabase status`; local
+developers should use the URL from their explicitly disposable Supabase stack.
+
+Migration `0019_sync_sequence.sql` is immutable. Its historical `server_seq`
+backfill updates each participating row while the pre-existing touch triggers are
+active, so historical `server_updated_at` values are reset during that migration.
+This is an accepted diagnostic-metadata side effect: `server_updated_at` is not a
+sync or conflict cursor, and no forward migration is warranted solely to restore
+those old diagnostic timestamps.
+
 `pnpm db:migrate` is different: Drizzle connects to whatever `DATABASE_URL`
 currently names and applies pending migrations there. Treat it as a deployment
 command when `DATABASE_URL` is remote; inspect the target and obtain explicit

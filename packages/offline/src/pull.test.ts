@@ -198,6 +198,72 @@ describe('bidirectional pull invariants', () => {
     });
   });
 
+  it.each([
+    ['negative', -1],
+    ['non-safe integer', Number.MAX_SAFE_INTEGER + 1],
+    ['null', null],
+    ['malformed', 'not-a-sequence'],
+  ])(
+    'replaces only an invalid v2 %s checkpoint and rehydrates safely',
+    async (_case, invalidServerSeq) => {
+      const local = task('task-a', {
+        title: 'newer unsynced local edit',
+        updatedAt: cursor2,
+        serverSeq: seq2,
+      });
+      await getOfflineDb().tasks.put(local);
+      await enqueueUpsert('tasks', local.id, local);
+      await getOfflineDb().local_journal_entries.put({
+        id: 'local-only',
+        user_id: userA,
+        kind: 'reflection',
+        content: 'never synchronized',
+        created_at: cursor1,
+        updated_at: cursor1,
+      });
+      await getOfflineDb().sync_checkpoints.put({
+        id: `${userA}:tasks`,
+        user_id: userA,
+        table: 'tasks',
+        cursor_version: 2,
+        server_seq: invalidServerSeq,
+        updatedAt: 1,
+      } as never);
+
+      const requests: PullPageRequest[] = [];
+      const result = await pullRemoteChanges({
+        client,
+        userId: userA,
+        tables: ['tasks'],
+        fetchPage: async (request) => {
+          requests.push(request);
+          return memoryFetcher([
+            task('task-a', { title: 'older server row' }),
+            task('task-b', {
+              updatedAt: cursor2,
+              serverUpdatedAt: cursor2,
+              serverSeq: seq2,
+              deletedAt: cursor2,
+            }),
+          ])(request);
+        },
+      });
+
+      expect(result.failedTables).toEqual([]);
+      expect(requests[0]?.cursor).toBeNull();
+      expect((await getOfflineDb().tasks.get('task-a'))?.title).toBe(
+        'newer unsynced local edit',
+      );
+      expect((await getOfflineDb().tasks.get('task-b'))?.deleted_at).toBe(cursor2);
+      expect(await getOfflineDb().sync_queue.count()).toBe(1);
+      expect(await getOfflineDb().local_journal_entries.get('local-only')).toBeTruthy();
+      expect(await getOfflineDb().sync_checkpoints.get(`${userA}:tasks`)).toMatchObject({
+        cursor_version: 2,
+        server_seq: seq2,
+      });
+    },
+  );
+
   it('replays a duplicate page idempotently', async () => {
     const row = task('task-a');
     await applyPullPage({ userId: userA, table: 'tasks', rows: [row] });

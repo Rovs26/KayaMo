@@ -11,6 +11,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && pnpm check:copy",
+    "test:db:integration": "pnpm --filter @kayamo/db test:integration",
     "check:copy": "tsx scripts/check-copy.ts",
     "test:e2e": "turbo run test:e2e",
     "db:generate": "pnpm --filter @kayamo/db generate",

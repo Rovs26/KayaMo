@@ -1,7 +1,9 @@
 export {
   PACKAGE,
   getPublicSupabaseEnv,
+  getDbIntegrationEnv,
   getServiceSupabaseEnv,
+  isDbIntegrationConfigured,
   isDbTestConfigured,
   isSupabaseConfigured,
 } from './env';
@@ -12,6 +14,15 @@ export {
   type CookieMethodsServer,
 } from './client';
 export { REVIEWED_SCRIPTURE_PASSAGES } from './scripture-data';
+export { BIDIRECTIONAL_SYNC_CONTRACT } from './sync-contract';
+export type {
+  BidirectionalSyncSpec,
+  BidirectionalSyncTable,
+  SyncConflictColumn,
+  SyncOwnerColumn,
+  SyncStableKeyColumn,
+  SyncTableContract,
+} from './sync-contract';
 export type {
   AchievementDefinitionRow,
   AgentRun,

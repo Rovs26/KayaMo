@@ -122,6 +122,26 @@ function sequenceCursor(checkpoint: StoredSyncCheckpoint | undefined): SyncCurso
   return { serverSeq: checkpoint.server_seq };
 }
 
+async function recoverCheckpoint(
+  db: KayaMoDB,
+  checkpointIdValue: string,
+  checkpoint: StoredSyncCheckpoint | undefined,
+): Promise<StoredSyncCheckpoint | undefined> {
+  if (!checkpoint) return undefined;
+  if (
+    checkpoint.cursor_version !== 2 ||
+    !Number.isSafeInteger(checkpoint.server_seq) ||
+    checkpoint.server_seq < 0
+  ) {
+    // A timestamp cursor cannot be translated and a malformed sequence cursor
+    // cannot be trusted. Remove only this table's checkpoint so its normal
+    // idempotent merge can replay from sequence zero.
+    await db.sync_checkpoints.delete(checkpointIdValue);
+    return undefined;
+  }
+  return checkpoint;
+}
+
 function queuedTimestamp(item: SyncQueueItem): string | null {
   const value = item.payload.updated_at;
   return typeof value === 'string' ? value : null;
@@ -342,13 +362,11 @@ export async function pullRemoteChanges(params: {
       continue;
     }
     try {
-      let checkpoint = await db.sync_checkpoints.get(failureId);
-      if (checkpoint && checkpoint.cursor_version !== 2) {
-        // Timestamp checkpoints cannot be translated safely. Replace only this
-        // table's checkpoint and replay its server feed from sequence zero.
-        await db.sync_checkpoints.delete(failureId);
-        checkpoint = undefined;
-      }
+      let checkpoint = await recoverCheckpoint(
+        db,
+        failureId,
+        await db.sync_checkpoints.get(failureId),
+      );
       for (;;) {
         assertOfflineScope(scope);
         const rows = await fetchPage({

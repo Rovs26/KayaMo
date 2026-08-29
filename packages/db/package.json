@@ -17,7 +17,8 @@
     "migrate": "drizzle-kit migrate",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "node scripts/assert-integration-env.mjs && vitest run --no-file-parallelism --maxWorkers=1 src/rls.test.ts src/sync-database.integration.test.ts src/sync-postgrest.integration.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

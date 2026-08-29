@@ -15,6 +15,20 @@ export function isDbTestConfigured(): boolean {
   );
 }
 
+export function isDbIntegrationConfigured(): boolean {
+  return Boolean(isDbTestConfigured() && process.env.SUPABASE_DB_URL);
+}
+
+export function getDbIntegrationEnv(): { databaseUrl: string } {
+  const databaseUrl = process.env.SUPABASE_DB_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      'Missing SUPABASE_DB_URL. Database integration tests require a disposable local Supabase database.',
+    );
+  }
+  return { databaseUrl };
+}
+
 export function getPublicSupabaseEnv(): { url: string; anonKey: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

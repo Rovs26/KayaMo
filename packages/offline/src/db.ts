@@ -36,6 +36,7 @@ import type {
   WorkoutPlan,
   WorkoutPlanExercise,
   WorkoutSet,
+  BidirectionalSyncTable,
 } from '@kayamo/db';
 
 type LocalSyncRow<T> = Omit<T, 'server_seq'> & { server_seq?: number | null };
@@ -150,33 +151,7 @@ export type LocalSocialPrefs = {
   updated_at: string;
 };
 
-export type SyncableTable =
-  | 'food_entries'
-  | 'weight_logs'
-  | 'workouts'
-  | 'workout_sets'
-  | 'exercises'
-  | 'workout_plans'
-  | 'workout_plan_exercises'
-  | 'meal_templates'
-  | 'tasks'
-  | 'routines'
-  | 'routine_completions'
-  | 'agent_memory'
-  | 'coco_conversations'
-  | 'coco_messages'
-  | 'goals'
-  | 'goal_milestones'
-  | 'habits'
-  | 'habit_completions'
-  | 'companion_events'
-  | 'daily_plans'
-  | 'focus_sessions'
-  | 'daily_loop_preferences'
-  | 'future_selves'
-  | 'compasses'
-  | 'inbox_items'
-  | 'personal_rules';
+export type SyncableTable = BidirectionalSyncTable;
 
 export type SyncQueueItem = {
   id: string;

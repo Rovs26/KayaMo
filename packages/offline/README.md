@@ -55,6 +55,16 @@ discarded only for its own table and that table replays from sequence zero. The
 idempotent merge preserves newer queued local edits and never wipes the account DB,
 local-only records, or unsent mutations.
 
+Malformed version-2 checkpoints (negative, unsafe, null, or non-numeric sequences)
+use the same table-scoped recovery. The invalid checkpoint is deleted rather than
+accepted, that table replays from sequence zero, and a valid version-2 checkpoint
+is established after atomic page application.
+
+Migration `0019_sync_sequence.sql` assigns historical sequences through updates
+while legacy touch triggers remain active. Historical `server_updated_at` values
+therefore reset during the backfill; this is diagnostic only and never affects
+ordering, LWW, or deletion behavior.
+
 Every page is validated for ownership and structural cursor fields, then its rows
 and table/user checkpoint are written in one Dexie transaction. A crash or cursor
 write failure rolls back both. Each authenticated account uses its own IndexedDB;
